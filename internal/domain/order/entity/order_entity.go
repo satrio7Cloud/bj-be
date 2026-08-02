@@ -30,6 +30,9 @@ type Order struct {
 	ServiceLevel           string `gorm:"type:varchar(50);not null;default:'STANDARD'"`
 	IsNameTransferRequired bool   `gorm:"type:bit;not null;default:0"`
 
+	SamsatOrigin      *string `gorm:"type:varchar(100)"`
+	SamsatDestination *string `gorm:"type:varchar(100)"`
+
 	Notes     string    `gorm:"type:varchar(max)"`
 	OrderDate time.Time `gorm:"autoCreateTime"`
 }

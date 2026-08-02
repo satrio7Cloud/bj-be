@@ -25,6 +25,9 @@ type CreateOrderAdminRequest struct {
 	ServiceLevel           string  `json:"service_level"`
 	IsNameTransferRequired bool    `json:"is_name_transfer_required"`
 	
+	SamsatOrigin           *string `json:"samsat_origin,omitempty"`
+	SamsatDestination      *string `json:"samsat_destination,omitempty"`
+
 	Notes                  string  `json:"notes"`
 }
 
@@ -41,6 +44,9 @@ type CreateOrderCustomerRequest struct {
 	ServiceLevel           string  `json:"service_level"`
 	IsNameTransferRequired bool    `json:"is_name_transfer_required"`
 	
+	SamsatOrigin           *string `json:"samsat_origin,omitempty"`
+	SamsatDestination      *string `json:"samsat_destination,omitempty"`
+
 	Notes                  string  `json:"notes"`
 }
 
@@ -80,6 +86,9 @@ type OrderResponse struct {
 	ServiceLevel           string    `json:"service_level"`
 	IsNameTransferRequired bool      `json:"is_name_transfer_required"`
 	
+	SamsatOrigin           *string   `json:"samsat_origin,omitempty"`
+	SamsatDestination      *string   `json:"samsat_destination,omitempty"`
+
 	Notes                  string    `json:"notes"`
 	OrderDate              time.Time `json:"order_date"`
 	

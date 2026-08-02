@@ -25,8 +25,8 @@ func (r *orderRepository) Create(order *entity.Order) error {
 		ID, CustomerID, VehicleID, ServiceID, ProcessedByID, Status, 
 		PickupMethod, ReturnMethod, CustomerTrackingNumber, BiroJasaTrackingNumber, PickupAddress,
 		TaxAmount, ServiceFee, AdminFee, PhysicalCheckFee, DeliveryFee, ExpressFee, TotalCost, 
-		ServiceLevel, IsNameTransferRequired, Notes, OrderDate
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		ServiceLevel, IsNameTransferRequired, SamsatOrigin, SamsatDestination, Notes, OrderDate
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	
 	isNameTransferBit := 0
 	if order.IsNameTransferRequired {
@@ -37,7 +37,7 @@ func (r *orderRepository) Create(order *entity.Order) error {
 		order.ID, order.CustomerID, order.VehicleID, order.ServiceID, order.ProcessedByID, order.Status,
 		order.PickupMethod, order.ReturnMethod, order.CustomerTrackingNumber, order.BiroJasaTrackingNumber, order.PickupAddress,
 		order.TaxAmount, order.ServiceFee, order.AdminFee, order.PhysicalCheckFee, order.DeliveryFee, order.ExpressFee, order.TotalCost,
-		order.ServiceLevel, isNameTransferBit, order.Notes, order.OrderDate,
+		order.ServiceLevel, isNameTransferBit, order.SamsatOrigin, order.SamsatDestination, order.Notes, order.OrderDate,
 	).Error
 }
 
@@ -52,7 +52,7 @@ func (r *orderRepository) FindAll(page int, limit int) ([]entity.Order, error) {
 		CAST(ProcessedByID AS VARCHAR(36)) AS ProcessedByID, Status, 
 		PickupMethod, ReturnMethod, CustomerTrackingNumber, BiroJasaTrackingNumber, PickupAddress,
 		TaxAmount, ServiceFee, AdminFee, PhysicalCheckFee, DeliveryFee, ExpressFee, TotalCost, 
-		ServiceLevel, IsNameTransferRequired, Notes, OrderDate
+		ServiceLevel, IsNameTransferRequired, SamsatOrigin, SamsatDestination, Notes, OrderDate
 		FROM dbo.Orders 
 		ORDER BY OrderDate DESC
 		OFFSET ? ROWS
@@ -70,7 +70,7 @@ func (r *orderRepository) FindByID(id string) (*entity.Order, error) {
 		CAST(ProcessedByID AS VARCHAR(36)) AS ProcessedByID, Status, 
 		PickupMethod, ReturnMethod, CustomerTrackingNumber, BiroJasaTrackingNumber, PickupAddress,
 		TaxAmount, ServiceFee, AdminFee, PhysicalCheckFee, DeliveryFee, ExpressFee, TotalCost, 
-		ServiceLevel, IsNameTransferRequired, Notes, OrderDate 
+		ServiceLevel, IsNameTransferRequired, SamsatOrigin, SamsatDestination, Notes, OrderDate 
 	FROM dbo.Orders WHERE ID = ?`
 	res := r.db.Raw(query, id).Scan(&order)
 	

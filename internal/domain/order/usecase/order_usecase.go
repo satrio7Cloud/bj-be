@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"bj/internal/constants"
@@ -64,6 +65,9 @@ func mapOrderToResponse(o entity.Order) dto.OrderResponse {
 		ServiceLevel:           o.ServiceLevel,
 		IsNameTransferRequired: o.IsNameTransferRequired,
 
+		SamsatOrigin:           o.SamsatOrigin,
+		SamsatDestination:      o.SamsatDestination,
+
 		Notes:     o.Notes,
 		OrderDate: o.OrderDate,
 	}
@@ -96,6 +100,9 @@ func (u *orderUsecase) CreateOrderAdmin(req dto.CreateOrderAdminRequest, adminID
 		ServiceLevel:           req.ServiceLevel,
 		IsNameTransferRequired: req.IsNameTransferRequired,
 
+		SamsatOrigin:           req.SamsatOrigin,
+		SamsatDestination:      req.SamsatDestination,
+
 		Notes:         req.Notes,
 		Status:        constants.OrderStatusPending,
 		ProcessedByID: &adminID,
@@ -110,7 +117,7 @@ func (u *orderUsecase) CreateOrderAdmin(req dto.CreateOrderAdminRequest, adminID
 	log := &logEntity.OrderLog{
 		ID:        uuid.New().String(),
 		OrderID:   newID,
-		AdminID:   adminID,
+		AdminID:   &adminID,
 		OldStatus: "",
 		NewStatus: constants.OrderStatusPending,
 		Notes:     "Pesanan dibuat (oleh Admin)",
@@ -129,6 +136,7 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 	var deliveryFee float64 = 0
 	var expressFee float64 = 0
 	var adminFee float64 = 25000 // Default admin fee
+	var physicalCheckFee float64 = 0
 
 	// 1. Get Service Base Price
 	srv, err := u.serviceRepo.FindByID(req.ServiceID)
@@ -141,11 +149,25 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 		} else if req.ServiceLevel == "EXPRESS" {
 			expressFee = 50000 // default fallback
 		}
+
+		// Calculate Physical Check Fee (Rp 30.000 for Mutasi, Balik Nama, 5-Year renewal, or if explicitly requested)
+		serviceNameLower := strings.ToLower(srv.ServiceName)
+		categoryLower := strings.ToLower(srv.Category)
+		if categoryLower == "mutasi kendaraan" || categoryLower == "balik nama" ||
+			strings.Contains(serviceNameLower, "5 tahunan") || strings.Contains(serviceNameLower, "ganti plat") ||
+			req.IsNameTransferRequired {
+			physicalCheckFee = 30000
+		}
+	} else {
+		// Fallback check if service is not found in DB
+		if req.IsNameTransferRequired {
+			physicalCheckFee = 30000
+		}
 	}
 
-	// 2. Calculate Delivery Fee
+	// 2. Calculate Delivery Fee (Di-set 0 karena ongkir kurir eksternal dibayar pelanggan di tempat)
 	if req.PickupMethod == "OJOL" || req.PickupMethod == "KURIR" || req.PickupMethod == "GOSEND" {
-		deliveryFee = 15000
+		deliveryFee = 0
 	}
 
 	// 3. Calculate Express Fee (handled above)
@@ -153,7 +175,7 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 		expressFee = 50000
 	}
 
-	totalCost := serviceFee + adminFee + deliveryFee + expressFee
+	totalCost := serviceFee + adminFee + deliveryFee + expressFee + physicalCheckFee
 
 	order := &entity.Order{
 		ID:         newID,
@@ -169,13 +191,16 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 		TaxAmount:        0, // Customer doesn't know the exact tax yet
 		ServiceFee:       serviceFee,
 		AdminFee:         adminFee,
-		PhysicalCheckFee: 0,
+		PhysicalCheckFee: physicalCheckFee,
 		DeliveryFee:      deliveryFee,
 		ExpressFee:       expressFee,
 		TotalCost:        totalCost,
 
 		ServiceLevel:           req.ServiceLevel,
 		IsNameTransferRequired: req.IsNameTransferRequired,
+
+		SamsatOrigin:           req.SamsatOrigin,
+		SamsatDestination:      req.SamsatDestination,
 
 		Notes:         req.Notes,
 		Status:        constants.OrderStatusPending,
@@ -189,11 +214,11 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 	}
 
 	// Buat log aktivitas pertama (Pesanan Dibuat)
-	// Karena ini pelanggan, kita set AdminID ke UUID kosong (sebagai penanda "Sistem/Pelanggan")
+	// Karena ini pelanggan, kita set AdminID ke nil (sebagai penanda "Sistem/Pelanggan")
 	log := &logEntity.OrderLog{
 		ID:        uuid.New().String(),
 		OrderID:   newID,
-		AdminID:   "00000000-0000-0000-0000-000000000000",
+		AdminID:   nil,
 		OldStatus: "",
 		NewStatus: constants.OrderStatusPending,
 		Notes:     "Pesanan dibuat (oleh Pelanggan)",
@@ -260,15 +285,16 @@ func (u *orderUsecase) UpdateOrderStatus(id string, req dto.UpdateOrderStatusReq
 		return err
 	}
 
-	if adminID == "" {
-		adminID = "00000000-0000-0000-0000-000000000000" // Fallback jika JWT tidak memberikan ID (untuk testing/system)
+	var adminIDPtr *string
+	if adminID != "" {
+		adminIDPtr = &adminID
 	}
 
 	// Create log synchronously agar ketika FE melakukan refresh data, log sudah pasti tersimpan di DB
 	log := &logEntity.OrderLog{
 		ID:        uuid.New().String(),
 		OrderID:   id,
-		AdminID:   adminID,
+		AdminID:   adminIDPtr,
 		OldStatus: oldStatus,
 		NewStatus: req.Status,
 		Notes:     req.Notes,
