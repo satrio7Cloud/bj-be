@@ -1,0 +1,55 @@
+basePath: /
+definitions:
+  bj_internal_domain_user_dto.LoginRequest:
+    properties:
+      email:
+        example: admin_bj@gmail.com
+        type: string
+      password:
+        example: Password123!
+        type: string
+    required:
+    - email
+    - password
+    type: object
+host: localhost:3000
+info:
+  contact: {}
+  description: REST API untuk sistem Biro Jasa
+  title: Biro Jasa API
+  version: "1.0"
+paths:
+  /api/v1/admins/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate admin and get JWT token
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/bj_internal_domain_user_dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Admin Login
+      tags:
+      - admins
+swagger: "2.0"

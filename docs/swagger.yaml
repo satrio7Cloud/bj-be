@@ -1,0 +1,1000 @@
+basePath: /
+definitions:
+  dto.CreateBrandRequest:
+    properties:
+      brand_name:
+        type: string
+    required:
+    - brand_name
+    type: object
+  dto.CreateCustomerRequest:
+    properties:
+      address:
+        type: string
+      fullname:
+        type: string
+      nik:
+        type: string
+      phone_number:
+        type: string
+    required:
+    - fullname
+    - phone_number
+    type: object
+  dto.CreateModelRequest:
+    properties:
+      brand_id:
+        type: string
+      model_name:
+        type: string
+      vehicle_type:
+        enum:
+        - motor
+        - mobil
+        type: string
+    required:
+    - brand_id
+    - model_name
+    - vehicle_type
+    type: object
+  dto.CreateOrderRequest:
+    properties:
+      admin_fee:
+        type: number
+      customer_id:
+        type: string
+      customer_tracking_number:
+        type: string
+      delivery_fee:
+        type: number
+      express_fee:
+        type: number
+      is_name_transfer_required:
+        type: boolean
+      notes:
+        type: string
+      physical_check_fee:
+        type: number
+      pickup_address:
+        type: string
+      pickup_method:
+        description: '--- Delivery Options ---'
+        type: string
+      return_method:
+        type: string
+      service_fee:
+        type: number
+      service_id:
+        type: string
+      service_level:
+        description: '--- Service Level ---'
+        type: string
+      tax_amount:
+        description: '--- Fees & Pricing ---'
+        type: number
+      vehicle_id:
+        type: string
+    required:
+    - customer_id
+    - service_id
+    - vehicle_id
+    type: object
+  dto.CreateServiceRequest:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      service_fee:
+        minimum: 0
+        type: number
+      service_name:
+        type: string
+    required:
+    - category
+    - service_name
+    type: object
+  dto.CreateVehicleRequest:
+    properties:
+      customer_id:
+        type: string
+      model_id:
+        type: string
+      plate_number:
+        type: string
+      year:
+        type: integer
+    required:
+    - customer_id
+    - model_id
+    - plate_number
+    - year
+    type: object
+  dto.GenerateInvoiceRequest:
+    properties:
+      order_id:
+        type: string
+    required:
+    - order_id
+    type: object
+  dto.InvoiceDetailResponse:
+    properties:
+      admin_fee:
+        type: number
+      customer_email:
+        type: string
+      customer_name:
+        description: Detail Pelanggan
+        type: string
+      customer_phone:
+        type: string
+      delivery_fee:
+        type: number
+      due_date:
+        type: string
+      express_fee:
+        type: number
+      invoice_id:
+        type: string
+      invoice_number:
+        type: string
+      issue_date:
+        type: string
+      order_id:
+        type: string
+      paid_at:
+        type: string
+      payment_method:
+        type: string
+      payment_status:
+        type: string
+      physical_check_fee:
+        type: number
+      service_fee:
+        type: number
+      service_name:
+        type: string
+      tax_amount:
+        description: Rincian Biaya (diambil dari Order)
+        type: number
+      total_cost:
+        type: number
+      vehicle_plate:
+        description: Detail Kendaraan & Layanan
+        type: string
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.PayInvoiceRequest:
+    properties:
+      payment_method:
+        type: string
+    required:
+    - payment_method
+    type: object
+  dto.RegisterRequest:
+    properties:
+      email:
+        type: string
+      fullname:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      phone_number:
+        type: string
+    required:
+    - email
+    - fullname
+    - password
+    - phone_number
+    type: object
+  dto.UpdateOrderStatusRequest:
+    properties:
+      notes:
+        type: string
+      status:
+        enum:
+        - Pending
+        - Processing
+        - Ready
+        - Completed
+        - Cancelled
+        - Rejected
+        type: string
+    required:
+    - status
+    type: object
+  dto.VerifyDocumentRequest:
+    properties:
+      is_verified:
+        type: boolean
+    type: object
+host: localhost:3000
+info:
+  contact: {}
+  description: REST API untuk sistem Biro Jasa
+  title: Biro Jasa API
+  version: "1.0"
+paths:
+  /api/v1/admins/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate admin and get JWT token
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Admin Login
+      tags:
+      - admins
+  /api/v1/admins/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new admin account
+      parameters:
+      - description: Register Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Register New Admin
+      tags:
+      - admins
+  /api/v1/brands:
+    get:
+      description: Retrieve a list of all vehicle brands
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Brands
+      tags:
+      - brands
+    post:
+      consumes:
+      - application/json
+      description: Create a new vehicle brand
+      parameters:
+      - description: Brand Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateBrandRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Brand
+      tags:
+      - brands
+  /api/v1/customers:
+    get:
+      description: Retrieve a list of all customers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Customers
+      tags:
+      - customers
+    post:
+      consumes:
+      - application/json
+      description: Create a new customer profile
+      parameters:
+      - description: Customer Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCustomerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Customer
+      tags:
+      - customers
+  /api/v1/dashboard/activities:
+    get:
+      description: Retrieve a list of recent activities/logs
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Recent Activities
+      tags:
+      - dashboard
+  /api/v1/dashboard/chart:
+    get:
+      description: Retrieve data for rendering dashboard charts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Chart Data
+      tags:
+      - dashboard
+  /api/v1/dashboard/orders:
+    get:
+      description: Retrieve a list of recent orders for the dashboard
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Dashboard Orders
+      tags:
+      - dashboard
+  /api/v1/dashboard/summary:
+    get:
+      description: Retrieve summary statistics for the dashboard
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Dashboard Summary
+      tags:
+      - dashboard
+  /api/v1/documents:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new document for an order
+      parameters:
+      - description: Order ID
+        in: formData
+        name: order_id
+        required: true
+        type: string
+      - description: Document Type (e.g. KTP, STNK)
+        in: formData
+        name: document_type
+        required: true
+        type: string
+      - description: File to upload (Max 5MB, JPG/PNG/PDF)
+        in: formData
+        name: document_file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload Document
+      tags:
+      - documents
+  /api/v1/documents/{id}:
+    delete:
+      description: Delete a document and its file from storage
+      parameters:
+      - description: Document ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete Document
+      tags:
+      - documents
+  /api/v1/documents/{id}/url:
+    get:
+      description: Get a temporary URL to download/view the document
+      parameters:
+      - description: Document ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Document Pre-signed URL
+      tags:
+      - documents
+  /api/v1/documents/{id}/verify:
+    patch:
+      consumes:
+      - application/json
+      description: Update verification status of a document
+      parameters:
+      - description: Document ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Verification Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifyDocumentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verify Document
+      tags:
+      - documents
+  /api/v1/documents/order/{orderId}:
+    get:
+      description: Retrieve a list of documents attached to a specific order
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Order Documents
+      tags:
+      - documents
+  /api/v1/invoices:
+    post:
+      consumes:
+      - application/json
+      description: Generates a new invoice or returns the existing one for a given
+        order
+      parameters:
+      - description: Generate Invoice Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.GenerateInvoiceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.InvoiceDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generate Invoice for an Order
+      tags:
+      - invoices
+  /api/v1/invoices/{id}/pay:
+    patch:
+      consumes:
+      - application/json
+      description: Simulate payment of an invoice (Update status to PAID)
+      parameters:
+      - description: Invoice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Payment Info
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PayInvoiceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Pay Invoice
+      tags:
+      - invoices
+  /api/v1/invoices/order/{orderId}:
+    get:
+      description: Retrieve a detailed invoice JSON by Order ID
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.InvoiceDetailResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Invoice By Order ID
+      tags:
+      - invoices
+  /api/v1/models:
+    get:
+      description: Retrieve a list of all vehicle models
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Models
+      tags:
+      - models
+    post:
+      consumes:
+      - application/json
+      description: Create a new vehicle model associated with a brand
+      parameters:
+      - description: Model Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateModelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Model
+      tags:
+      - models
+  /api/v1/orders:
+    get:
+      description: Retrieve a paginated list of all orders
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 50
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Orders
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      description: Create a new order for vehicle services
+      parameters:
+      - description: Order Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Order
+      tags:
+      - orders
+  /api/v1/orders/{id}:
+    get:
+      description: Retrieve detailed information of a specific order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Order by ID
+      tags:
+      - orders
+  /api/v1/orders/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the processing status of an order
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateOrderStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update Order Status
+      tags:
+      - orders
+  /api/v1/services:
+    get:
+      description: Retrieve a list of all master services
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Services
+      tags:
+      - services
+    post:
+      consumes:
+      - application/json
+      description: Create a new master service catalog item
+      parameters:
+      - description: Service Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateServiceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Service
+      tags:
+      - services
+  /api/v1/vehicles:
+    get:
+      description: Retrieve a list of all customer vehicles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Vehicles
+      tags:
+      - vehicles
+    post:
+      consumes:
+      - application/json
+      description: Create a new customer vehicle
+      parameters:
+      - description: Vehicle Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateVehicleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Vehicle
+      tags:
+      - vehicles
+swagger: "2.0"
