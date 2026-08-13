@@ -1,49 +1,62 @@
-version: '3.8'
-
 services:
   bj_backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: bj_backend
-    restart: always # Auto-restart if crashes
+    restart: always # Auto-restart jika terjadi crash/server reboot
     ports:
       - "3000:3000"
-    # Semua konfigurasi (DB, JWT, MinIO, Redis, Midtrans) diambil dari file .env
-    # Salin .env.example -> .env lalu isi dengan nilai asli Anda.
     env_file:
       - .env
     depends_on:
-      - bj_sql_server
-      - bj_minio
-      - bj_redis
+      bj_sql_server:
+        condition: service_healthy
+      bj_redis:
+        condition: service_healthy
+      bj_minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   bj_redis:
     image: redis:7-alpine
     container_name: bj_redis
     ports:
       - "6379:6379"
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
 
   bj_sql_server:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: bj_sql_server
     environment:
       - ACCEPT_EULA=Y
-      # Default hanya untuk development LOKAL — di production pakai .env!
-      # (jangan pernah pakai kredensial production di file ini)
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-Password123!}
     ports:
       - "1434:1433"
     volumes:
       - bj_sqldata:/var/opt/mssql
-    restart: unless-stopped
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-Password123!}' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   bj_minio:
     image: quay.io/minio/minio:latest
     container_name: bj_minio
     environment:
-      # Default hanya untuk development LOKAL — di production pakai .env!
       - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-AdminBJ123}
       - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-BJAdmin123#}
     command: server /data --console-address ":9001"
@@ -52,7 +65,7 @@ services:
       - "9001:9001"
     volumes:
       - bj_minio_data:/data
-    restart: unless-stopped
+    restart: always
 
 volumes:
   bj_sqldata:

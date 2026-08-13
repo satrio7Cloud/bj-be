@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 
+	"strings"
+
 	"bj/internal/config"
 	"bj/internal/di"
 	appRoutes "bj/internal/routes"
@@ -28,9 +30,29 @@ func main() {
 		log.Fatalf("Gagal membangun container aplikasi: %v", err)
 	}
 
-	// Inisialisasi Fiber
+	// Inisialisasi Fiber dengan Custom ErrorHandler
 	app := fiber.New(fiber.Config{
 		AppName: "BJ-BE",
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+
+			errMsg := err.Error()
+			// Log error mentah di console server
+			log.Printf("[INTERNAL ERROR] %v\n", err)
+
+			// Sanitasi pesan error teknis/TCP agar tidak bocor ke client
+			if strings.Contains(errMsg, "tcp") || strings.Contains(errMsg, "dial") || strings.Contains(errMsg, "sqlserver") || strings.Contains(errMsg, "i/o timeout") || strings.Contains(errMsg, "connection refused") {
+				errMsg = "Layanan database backend sedang tidak dapat dijangkau. Silakan periksa koneksi atau coba beberapa saat lagi."
+			}
+
+			return c.Status(code).JSON(fiber.Map{
+				"status":  "error",
+				"message": errMsg,
+			})
+		},
 	})
 
 	// Mengaktifkan Middleware CORS & Logger

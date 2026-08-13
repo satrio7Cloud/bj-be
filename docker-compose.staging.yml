@@ -1,0 +1,72 @@
+services:
+  bj_backend_staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bj_backend_staging
+    restart: always
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.staging
+    depends_on:
+      bj_sql_server_staging:
+        condition: service_healthy
+      bj_redis_staging:
+        condition: service_healthy
+      bj_minio_staging:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  bj_redis_staging:
+    image: redis:7-alpine
+    container_name: bj_redis_staging
+    ports:
+      - "6380:6379"
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  bj_sql_server_staging:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: bj_sql_server_staging
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-PasswordStaging123!}
+    ports:
+      - "1435:1433"
+    volumes:
+      - bj_sqldata_staging:/var/opt/mssql
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-PasswordStaging123!}' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  bj_minio_staging:
+    image: quay.io/minio/minio:latest
+    container_name: bj_minio_staging
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-AdminBJStaging123}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-BJStagingAdmin123#}
+    command: server /data --console-address ":9002"
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - bj_minio_data_staging:/data
+    restart: always
+
+volumes:
+  bj_sqldata_staging:
+  bj_minio_data_staging:

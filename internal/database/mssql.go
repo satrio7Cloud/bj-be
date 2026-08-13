@@ -33,13 +33,33 @@ func ConnectSQLServer(cfg *config.Config) *gorm.DB {
 		},
 	)
 
-	db, err := gorm.Open(sqlserver.Open(dsn), &gorm.Config{
-		Logger: newLogger,
-	})
-	if err != nil {
-		log.Fatalf("Gagal terhubung ke database: %v", err)
+	var db *gorm.DB
+	var err error
+	maxRetries := 5
+
+	// Retry loop untuk mengantisipasi database booting atau mati sementara
+	for i := 1; i <= maxRetries; i++ {
+		log.Printf("Mencoba terhubung ke database (Percobaan %d/%d)...\n", i, maxRetries)
+		db, err = gorm.Open(sqlserver.Open(dsn), &gorm.Config{
+			Logger: newLogger,
+		})
+		if err == nil {
+			sqlDB, errPool := db.DB()
+			if errPool == nil {
+				if pingErr := sqlDB.Ping(); pingErr == nil {
+					sqlDB.SetMaxIdleConns(10)
+					sqlDB.SetMaxOpenConns(100)
+					sqlDB.SetConnMaxLifetime(time.Hour)
+					log.Println("Berhasil terhubung ke database", cfg.SQLServer.Database)
+					return db
+				}
+			}
+		}
+
+		log.Printf("Gagal terhubung ke database (%v). Mencoba kembali dalam 3 detik...\n", err)
+		time.Sleep(3 * time.Second)
 	}
 
-	log.Println("Berhasil terhubung ke database", cfg.SQLServer.Database)
-	return db
+	log.Fatalf("Gagal terhubung ke database setelah %d percobaan: %v", maxRetries, err)
+	return nil
 }
