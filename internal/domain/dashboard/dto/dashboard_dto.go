@@ -9,6 +9,11 @@ type DashboardSummaryResponse struct {
 	TotalCompletedOrders int64   `json:"total_completed_orders"`
 	TotalRevenue         float64 `json:"total_revenue"`
 
+	// KTL Metrics
+	TotalPendingKTLs   int64   `json:"total_pending_ktls"`
+	TotalCompletedKTLs int64   `json:"total_completed_ktls"`
+	TotalRevenueKTLs   float64 `json:"total_revenue_ktls"`
+
 	// New Metrics
 	PendingActions PendingActionsResponse `json:"pending_actions"`
 	TopServices    []TopServiceResponse   `json:"top_services"`
@@ -17,6 +22,7 @@ type DashboardSummaryResponse struct {
 type PendingActionsResponse struct {
 	UnverifiedDocuments int64 `json:"unverified_documents"`
 	StuckOrders         int64 `json:"stuck_orders"`
+	StuckKTLs           int64 `json:"stuck_ktls"`
 }
 
 type TopServiceResponse struct {

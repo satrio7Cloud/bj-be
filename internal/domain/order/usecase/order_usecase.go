@@ -12,6 +12,9 @@ import (
 	logEntity "bj/internal/domain/orderlog/entity"
 	logRepo "bj/internal/domain/orderlog/repository"
 	srvRepo "bj/internal/domain/service/repository"
+	"bj/internal/shared/storage"
+	"context"
+	"mime/multipart"
 
 	"github.com/google/uuid"
 )
@@ -22,19 +25,25 @@ type OrderUsecase interface {
 	GetAllOrders(page int, limit int) ([]dto.OrderResponse, error)
 	GetOrderByID(id string) (*dto.OrderResponse, error)
 	UpdateOrderStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error
+	CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader, filePem *multipart.FileHeader) (dto.OrderKTLResponse, error)
+	GetAllOrderKTLs(page int, limit int) ([]dto.OrderKTLResponse, error)
+	GetOrderKTLByID(id string) (*dto.OrderKTLResponse, error)
+	UpdateOrderKTLStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error
 }
 
 type orderUsecase struct {
-	orderRepo    repository.OrderRepository
-	orderLogRepo logRepo.OrderLogRepository
-	serviceRepo  srvRepo.ServiceRepository
+	orderRepo      repository.OrderRepository
+	orderLogRepo   logRepo.OrderLogRepository
+	serviceRepo    srvRepo.ServiceRepository
+	storageService storage.StorageService
 }
 
-func NewOrderUsecase(repo repository.OrderRepository, logRepo logRepo.OrderLogRepository, serviceRepo srvRepo.ServiceRepository) OrderUsecase {
+func NewOrderUsecase(repo repository.OrderRepository, logRepo logRepo.OrderLogRepository, serviceRepo srvRepo.ServiceRepository, storageService storage.StorageService) OrderUsecase {
 	return &orderUsecase{
-		orderRepo:    repo,
-		orderLogRepo: logRepo,
-		serviceRepo:  serviceRepo,
+		orderRepo:      repo,
+		orderLogRepo:   logRepo,
+		serviceRepo:    serviceRepo,
+		storageService: storageService,
 	}
 }
 
@@ -65,8 +74,8 @@ func mapOrderToResponse(o entity.Order) dto.OrderResponse {
 		ServiceLevel:           o.ServiceLevel,
 		IsNameTransferRequired: o.IsNameTransferRequired,
 
-		SamsatOrigin:           o.SamsatOrigin,
-		SamsatDestination:      o.SamsatDestination,
+		SamsatOrigin:      o.SamsatOrigin,
+		SamsatDestination: o.SamsatDestination,
 
 		Notes:     o.Notes,
 		OrderDate: o.OrderDate,
@@ -100,8 +109,8 @@ func (u *orderUsecase) CreateOrderAdmin(req dto.CreateOrderAdminRequest, adminID
 		ServiceLevel:           req.ServiceLevel,
 		IsNameTransferRequired: req.IsNameTransferRequired,
 
-		SamsatOrigin:           req.SamsatOrigin,
-		SamsatDestination:      req.SamsatDestination,
+		SamsatOrigin:      req.SamsatOrigin,
+		SamsatDestination: req.SamsatDestination,
 
 		Notes:         req.Notes,
 		Status:        constants.OrderStatusPending,
@@ -135,14 +144,14 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 	var serviceFee float64 = 0
 	var deliveryFee float64 = 0
 	var expressFee float64 = 0
-	var adminFee float64 = 25000 // Default admin fee
+	var adminFee float64 = 0 // Default admin fee, updated to 10000 as requested
 	var physicalCheckFee float64 = 0
 
 	// 1. Get Service Base Price
 	srv, err := u.serviceRepo.FindByID(req.ServiceID)
 	if err == nil && srv != nil {
 		serviceFee = srv.ServiceFee
-		
+
 		// If service has its own express fee defined, use it as fallback
 		if req.ServiceLevel == "EXPRESS" && srv.ExpressFee > 0 {
 			expressFee = srv.ExpressFee
@@ -150,13 +159,23 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 			expressFee = 50000 // default fallback
 		}
 
-		// Calculate Physical Check Fee (Rp 30.000 for Mutasi, Balik Nama, 5-Year renewal, or if explicitly requested)
-		serviceNameLower := strings.ToLower(srv.ServiceName)
-		categoryLower := strings.ToLower(srv.Category)
-		if categoryLower == "mutasi kendaraan" || categoryLower == "balik nama" ||
-			strings.Contains(serviceNameLower, "5 tahunan") || strings.Contains(serviceNameLower, "ganti plat") ||
-			req.IsNameTransferRequired {
-			physicalCheckFee = 30000
+		// Use AdminFee from Service DB if it is set (> 0)
+		if srv.AdminFee > 0 {
+			adminFee = srv.AdminFee
+		}
+
+		// Use PhysicalCheckFee from Service DB if it is set (> 0)
+		if srv.PhysicalCheckFee > 0 {
+			physicalCheckFee = srv.PhysicalCheckFee
+		} else {
+			// Fallback: Calculate Physical Check Fee (Rp 30.000 for Mutasi, Balik Nama, 5-Year renewal, or if explicitly requested)
+			serviceNameLower := strings.ToLower(srv.ServiceName)
+			categoryLower := strings.ToLower(srv.Category)
+			if categoryLower == "mutasi kendaraan" || categoryLower == "balik nama" ||
+				strings.Contains(serviceNameLower, "5 tahunan") || strings.Contains(serviceNameLower, "ganti plat") ||
+				req.IsNameTransferRequired {
+				physicalCheckFee = 30000
+			}
 		}
 	} else {
 		// Fallback check if service is not found in DB
@@ -199,8 +218,8 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 		ServiceLevel:           req.ServiceLevel,
 		IsNameTransferRequired: req.IsNameTransferRequired,
 
-		SamsatOrigin:           req.SamsatOrigin,
-		SamsatDestination:      req.SamsatDestination,
+		SamsatOrigin:      req.SamsatOrigin,
+		SamsatDestination: req.SamsatDestination,
 
 		Notes:         req.Notes,
 		Status:        constants.OrderStatusPending,
@@ -308,4 +327,167 @@ func (u *orderUsecase) UpdateOrderStatus(id string, req dto.UpdateOrderStatusReq
 	}
 
 	return nil
+}
+
+func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader, filePem *multipart.FileHeader) (dto.OrderKTLResponse, error) {
+	// Validasi input
+	if req.Fee <= 0 {
+		return dto.OrderKTLResponse{}, errors.New("fee harus lebih dari 0")
+	}
+
+	validRegions := map[string]bool{
+		"Jakarta":   true,
+		"Tangerang": true,
+		"Depok":     true,
+	}
+	if !validRegions[req.Region] {
+		return dto.OrderKTLResponse{}, errors.New("region tidak didukung")
+	}
+
+	if req.VehicleType != "Motor" && req.VehicleType != "Mobil" {
+		return dto.OrderKTLResponse{}, errors.New("vehicle type harus Motor atau Mobil")
+	}
+
+	var merchantRefPtr *string
+	if req.MerchantRef != "" {
+		merchantRefPtr = &req.MerchantRef
+	}
+
+	var buktiKTLPath, buktiPemPath *string
+
+	if fileKtl != nil && u.storageService != nil {
+		path, err := u.storageService.UploadFile(ctx, fileKtl, "cetak-ktl")
+		if err == nil {
+			buktiKTLPath = &path
+		} else {
+			println("Warning: gagal upload bukti ktl -", err.Error())
+		}
+	}
+
+	if filePem != nil && u.storageService != nil {
+		path, err := u.storageService.UploadFile(ctx, filePem, "cetak-ktl")
+		if err == nil {
+			buktiPemPath = &path
+		} else {
+			println("Warning: gagal upload bukti pembayaran -", err.Error())
+		}
+	}
+
+	newID := uuid.New().String()
+	orderKTL := &entity.OrderKTL{
+		ID:                  newID,
+		CustomerName:        req.CustomerName,
+		PhoneNumber:         req.PhoneNumber,
+		VehicleType:         req.VehicleType,
+		Region:              req.Region,
+		Fee:                 req.Fee,
+		MerchantRef:         merchantRefPtr,
+		Status:              constants.OrderKTLStatusPending,
+		BuktiKtlPath:        buktiKTLPath,
+		BuktiPembayaranPath: buktiPemPath,
+		OrderDate:           time.Time{}, // Let DB handle this or use time.Now()
+	}
+	orderKTL.OrderDate = time.Now()
+
+	err := u.orderRepo.CreateOrderKTL(orderKTL)
+	if err != nil {
+		return dto.OrderKTLResponse{}, err
+	}
+
+	resp := dto.OrderKTLResponse{
+		ID:                  orderKTL.ID,
+		CustomerName:        orderKTL.CustomerName,
+		PhoneNumber:         orderKTL.PhoneNumber,
+		VehicleType:         orderKTL.VehicleType,
+		Region:              orderKTL.Region,
+		Fee:                 orderKTL.Fee,
+		MerchantRef:         orderKTL.MerchantRef,
+		Status:              orderKTL.Status,
+		BuktiKtlPath:        orderKTL.BuktiKtlPath,
+		BuktiPembayaranPath: orderKTL.BuktiPembayaranPath,
+		OrderDate:           orderKTL.OrderDate,
+	}
+
+	return resp, nil
+}
+
+func (u *orderUsecase) GetAllOrderKTLs(page int, limit int) ([]dto.OrderKTLResponse, error) {
+	orders, err := u.orderRepo.FindAllOrderKTL(page, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []dto.OrderKTLResponse
+	for _, o := range orders {
+		responses = append(responses, dto.OrderKTLResponse{
+			ID:                  o.ID,
+			CustomerName:        o.CustomerName,
+			PhoneNumber:         o.PhoneNumber,
+			VehicleType:         o.VehicleType,
+			Region:              o.Region,
+			Fee:                 o.Fee,
+			MerchantRef:         o.MerchantRef,
+			Status:              o.Status,
+			BuktiKtlPath:        o.BuktiKtlPath,
+			BuktiPembayaranPath: o.BuktiPembayaranPath,
+			OrderDate:           o.OrderDate,
+		})
+	}
+
+	return responses, nil
+}
+
+func (u *orderUsecase) UpdateOrderKTLStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error {
+	err := u.orderRepo.UpdateKTLStatus(id, req.Status)
+	if err != nil {
+		return err
+	}
+
+	var adminIDPtr *string
+	if adminID != "" {
+		adminIDPtr = &adminID
+	}
+
+	log := &logEntity.OrderLog{
+		ID:        uuid.New().String(),
+		OrderID:   id,
+		AdminID:   adminIDPtr,
+		OldStatus: "", 
+		NewStatus: req.Status,
+		Notes:     req.Notes,
+		CreatedAt: time.Now(),
+	}
+
+	err = u.orderLogRepo.Create(log)
+	if err != nil {
+		println("ERROR GAGAL SAVE LOG KTL:", err.Error())
+	}
+
+	return nil
+}
+
+func (u *orderUsecase) GetOrderKTLByID(id string) (*dto.OrderKTLResponse, error) {
+	order, err := u.orderRepo.FindOrderKTLByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if order == nil {
+		return nil, errors.New("pesanan KTL tidak ditemukan")
+	}
+
+	resp := &dto.OrderKTLResponse{
+		ID:                  order.ID,
+		CustomerName:        order.CustomerName,
+		PhoneNumber:         order.PhoneNumber,
+		VehicleType:         order.VehicleType,
+		Region:              order.Region,
+		Fee:                 order.Fee,
+		MerchantRef:         order.MerchantRef,
+		Status:              order.Status,
+		BuktiKtlPath:        order.BuktiKtlPath,
+		BuktiPembayaranPath: order.BuktiPembayaranPath,
+		OrderDate:           order.OrderDate,
+	}
+
+	return resp, nil
 }

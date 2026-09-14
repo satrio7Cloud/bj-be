@@ -54,6 +54,10 @@ import (
 	invoiceRepository "bj/internal/domain/invoice/repository"
 	invoiceUsecase "bj/internal/domain/invoice/usecase"
 
+	notificationHandler "bj/internal/domain/notification/handler"
+	notificationRepository "bj/internal/domain/notification/repository"
+	notificationUsecase "bj/internal/domain/notification/usecase"
+
 	"gorm.io/gorm"
 )
 
@@ -113,6 +117,11 @@ type Container struct {
 	InvoiceRepo invoiceRepository.InvoiceRepository
 	InvoiceUC   invoiceUsecase.InvoiceUsecase
 	InvoiceHdl  *invoiceHandler.InvoiceHandler
+
+	// Notification Domain
+	NotificationRepo notificationRepository.NotificationRepository
+	NotificationUC   notificationUsecase.NotificationUsecase
+	NotificationHdl  *notificationHandler.NotificationHandler
 }
 
 // NewContainer melakukan inisialisasi semua repository, usecase, dan handler
@@ -163,7 +172,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	orderRepo := orderRepository.NewOrderRepository(db)
 	orderLogRepo := orderlogRepository.NewOrderLogRepository(db)
 	serviceRepo := serviceRepository.NewServiceRepository(db)
-	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo)
+	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo, storageService)
 	orderHdl := orderHandler.NewOrderHandler(orderUC)
 
 	serviceUC := serviceUsecase.NewServiceUsecase(serviceRepo, redisClient)
@@ -172,6 +181,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	documentRepo := documentRepository.NewDocumentRepository(db)
 	documentUC := documentUsecase.NewDocumentUsecase(documentRepo, orderRepo, serviceRepo, storageService)
 	documentHdl := documentHandler.NewDocumentHandler(documentUC)
+
 
 	vehicleRepo := vehicleRepository.NewVehicleRepository(db)
 	vehicleUC := vehicleUsecase.NewVehicleUsecase(vehicleRepo)
@@ -185,42 +195,52 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	invoiceUC := invoiceUsecase.NewInvoiceUsecase(invoiceRepo, orderRepo, customerRepo, vehicleRepo, serviceRepo, qrisGenerator, cfg)
 	invoiceHdl := invoiceHandler.NewInvoiceHandler(invoiceUC)
 
+	notificationRepo := notificationRepository.NewNotificationRepository(db)
+	notificationUC := notificationUsecase.NewNotificationUsecase(notificationRepo)
+	notificationHdl := notificationHandler.NewNotificationHandler(notificationUC)
+
+	// Start Cronjob Scheduler in background
+	go notificationUC.StartNotificationScheduler()
+
 	// Return Container
 	return &Container{
 		Config: cfg,
 		DB:     db,
 		Redis:  redisClient,
 
-		AdminRepo:      adminRepo,
-		AdminUC:        adminUC,
-		AdminHdl:       adminHdl,
-		BrandRepo:      brandRepo,
-		BrandUC:        brandUC,
-		BrandHdl:       brandHdl,
-		CustomerRepo:   customerRepo,
-		CustomerUC:     customerUC,
-		CustomerHdl:    customerHdl,
-		DocumentRepo:   documentRepo,
-		StorageService: storageService,
-		DocumentUC:     documentUC,
-		DocumentHdl:    documentHdl,
-		ModelRepo:      modelRepo,
-		ModelUC:        modelUC,
-		ModelHdl:       modelHdl,
-		OrderRepo:      orderRepo,
-		OrderUC:        orderUC,
-		OrderHdl:       orderHdl,
-		ServiceRepo:    serviceRepo,
-		ServiceUC:      serviceUC,
-		ServiceHdl:     serviceHdl,
-		VehicleRepo:    vehicleRepo,
-		VehicleUC:      vehicleUC,
-		VehicleHdl:     vehicleHdl,
-		DashboardRepo:  dashboardRepo,
-		DashboardUC:    dashboardUC,
-		DashboardHdl:   dashboardHdl,
-		InvoiceRepo:    invoiceRepo,
-		InvoiceUC:      invoiceUC,
-		InvoiceHdl:     invoiceHdl,
+		AdminRepo:        adminRepo,
+		AdminUC:          adminUC,
+		AdminHdl:         adminHdl,
+		BrandRepo:        brandRepo,
+		BrandUC:          brandUC,
+		BrandHdl:         brandHdl,
+		CustomerRepo:     customerRepo,
+		CustomerUC:       customerUC,
+		CustomerHdl:      customerHdl,
+		DocumentRepo:     documentRepo,
+		StorageService:   storageService,
+		DocumentUC:       documentUC,
+		DocumentHdl:      documentHdl,
+		ModelRepo:        modelRepo,
+		ModelUC:          modelUC,
+		ModelHdl:         modelHdl,
+		OrderRepo:        orderRepo,
+		OrderUC:          orderUC,
+		OrderHdl:         orderHdl,
+		ServiceRepo:      serviceRepo,
+		ServiceUC:        serviceUC,
+		ServiceHdl:       serviceHdl,
+		VehicleRepo:      vehicleRepo,
+		VehicleUC:        vehicleUC,
+		VehicleHdl:       vehicleHdl,
+		DashboardRepo:    dashboardRepo,
+		DashboardUC:      dashboardUC,
+		DashboardHdl:     dashboardHdl,
+		InvoiceRepo:      invoiceRepo,
+		InvoiceUC:        invoiceUC,
+		InvoiceHdl:       invoiceHdl,
+		NotificationRepo: notificationRepo,
+		NotificationUC:   notificationUC,
+		NotificationHdl:  notificationHdl,
 	}, nil
 }

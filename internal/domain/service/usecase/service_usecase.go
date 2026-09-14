@@ -37,25 +37,29 @@ func NewServiceUsecase(repo repository.ServiceRepository, redisClient *redis.Cli
 // Mapper functions
 func mapServiceToResponse(s entity.Service) dto.ServiceResponse {
 	return dto.ServiceResponse{
-		ID:          s.ID,
-		ServiceName: s.ServiceName,
-		Category:    s.Category,
-		ServiceFee:  s.ServiceFee,
-		ExpressFee:  s.ExpressFee,
-		Description: s.Description,
-		CreatedAt:   s.CreatedAt,
+		ID:               s.ID,
+		ServiceName:      s.ServiceName,
+		Category:         s.Category,
+		ServiceFee:       s.ServiceFee,
+		ExpressFee:       s.ExpressFee,
+		AdminFee:         s.AdminFee,
+		PhysicalCheckFee: s.PhysicalCheckFee,
+		Description:      s.Description,
+		CreatedAt:        s.CreatedAt,
 	}
 }
 
 func (u *serviceUsecase) CreateService(req dto.CreateServiceRequest) error {
 	service := &entity.Service{
-		ID:          uuid.New().String(),
-		ServiceName: req.ServiceName,
-		Category:    req.Category,
-		ServiceFee:  req.ServiceFee,
-		ExpressFee:  req.ExpressFee,
-		Description: req.Description,
-		CreatedAt:   time.Now(),
+		ID:               uuid.New().String(),
+		ServiceName:      req.ServiceName,
+		Category:         req.Category,
+		ServiceFee:       req.ServiceFee,
+		ExpressFee:       req.ExpressFee,
+		AdminFee:         req.AdminFee,
+		PhysicalCheckFee: req.PhysicalCheckFee,
+		Description:      req.Description,
+		CreatedAt:        time.Now(),
 	}
 	
 	
@@ -130,6 +134,8 @@ func (u *serviceUsecase) UpdateService(id string, req dto.UpdateServiceRequest) 
 	// Note: 0 is valid for ServiceFee if free, but normally we check if it's passed or use pointers
 	service.ServiceFee = req.ServiceFee
 	service.ExpressFee = req.ExpressFee
+	service.AdminFee = req.AdminFee
+	service.PhysicalCheckFee = req.PhysicalCheckFee
 	if req.Description != "" {
 		service.Description = req.Description
 	}

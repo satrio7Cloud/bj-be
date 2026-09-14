@@ -51,17 +51,25 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-	// Memuat file .env menggunakan library godotenv
-	err := godotenv.Load()
+	// Mencoba memuat file .env dari beberapa kemungkinan lokasi (root atau dalam folder cmd)
+	err := godotenv.Load(".env")
+	if err != nil {
+		err = godotenv.Load("../../.env")
+	}
 	if err != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan nilai bawaan OS")
+	}
+
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "localhost" || dbHost == "" {
+		dbHost = "127.0.0.1"
 	}
 
 	return &Config{
 		AppHost: os.Getenv("APP_HOST"),
 		AppPort: os.Getenv("APP_PORT"),
 		SQLServer: SQLServerConfig{
-			Host:     os.Getenv("DB_HOST"),
+			Host:     dbHost,
 			Port:     os.Getenv("DB_PORT"),
 			User:     os.Getenv("DB_USER"),
 			Password: os.Getenv("DB_PASSWORD"),

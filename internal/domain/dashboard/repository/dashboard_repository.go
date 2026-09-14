@@ -28,41 +28,35 @@ func (r *dashboardRepository) GetSummary() (dto.DashboardSummaryResponse, error)
 	var summary dto.DashboardSummaryResponse
 
 	// Total Pending Orders
-	err := r.db.Table("dbo.Orders").Where("Status = ?", "Pending").Count(&summary.TotalPendingOrders).Error
-	if err != nil {
-		return summary, err
-	}
+	r.db.Table("dbo.Orders").Where("Status = ?", "Pending").Count(&summary.TotalPendingOrders)
+	r.db.Table("dbo.OrderKTLs").Where("Status = ?", "Pending").Count(&summary.TotalPendingKTLs)
 
-	// Total Express Orders
-	err = r.db.Table("dbo.Orders").Where("ServiceLevel = ?", "EXPRESS").Count(&summary.TotalExpressOrders).Error
-	if err != nil {
-		return summary, err
-	}
+	// Total Express Orders (Only in normal Orders)
+	r.db.Table("dbo.Orders").Where("ServiceLevel = ?", "EXPRESS").Count(&summary.TotalExpressOrders)
 
 	// Total Completed Orders (This Month)
-	// Using SQL Server specific MONTH() and YEAR() functions
-	err = r.db.Table("dbo.Orders").
+	r.db.Table("dbo.Orders").
 		Where("Status = ? AND MONTH(OrderDate) = MONTH(GETDATE()) AND YEAR(OrderDate) = YEAR(GETDATE())", "Completed").
-		Count(&summary.TotalCompletedOrders).Error
-	if err != nil {
-		return summary, err
-	}
+		Count(&summary.TotalCompletedOrders)
+	r.db.Table("dbo.OrderKTLs").
+		Where("Status = ? AND MONTH(OrderDate) = MONTH(GETDATE()) AND YEAR(OrderDate) = YEAR(GETDATE())", "Completed").
+		Count(&summary.TotalCompletedKTLs)
 
-	// Total Revenue (This Month) - Sum of TotalCost for Completed Orders
-	// We use NullFloat64 in case there are no completed orders this month to avoid errors
-	var totalRevenue *float64
-	err = r.db.Table("dbo.Orders").
-		Select("SUM(TotalCost)").
+	// Total Revenue (This Month)
+	var revenueOrders, revenueKTLs *float64
+	r.db.Table("dbo.Orders").Select("SUM(TotalCost)").
 		Where("Status = ? AND MONTH(OrderDate) = MONTH(GETDATE()) AND YEAR(OrderDate) = YEAR(GETDATE())", "Completed").
-		Scan(&totalRevenue).Error
-	if err != nil {
-		return summary, err
-	}
+		Scan(&revenueOrders)
 	
-	if totalRevenue != nil {
-		summary.TotalRevenue = *totalRevenue
-	} else {
-		summary.TotalRevenue = 0
+	r.db.Table("dbo.OrderKTLs").Select("SUM(Fee)").
+		Where("Status = ? AND MONTH(OrderDate) = MONTH(GETDATE()) AND YEAR(OrderDate) = YEAR(GETDATE())", "Completed").
+		Scan(&revenueKTLs)
+
+	if revenueOrders != nil {
+		summary.TotalRevenue = *revenueOrders
+	}
+	if revenueKTLs != nil {
+		summary.TotalRevenueKTLs = *revenueKTLs
 	}
 
 	return summary, nil
@@ -70,8 +64,17 @@ func (r *dashboardRepository) GetSummary() (dto.DashboardSummaryResponse, error)
 
 func (r *dashboardRepository) GetOrders() ([]entity.DashboardOrder, error) {
 	var orders []entity.DashboardOrder
-	err := r.db.Select("CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName").
-		Order("OrderDate DESC").Find(&orders).Error
+	query := `
+		SELECT * FROM (
+			SELECT CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName
+			FROM vw_DashboardOrderList
+			UNION ALL
+			SELECT CAST(ID AS VARCHAR(36)) AS OrderID, OrderDate, Status, 'STANDARD' AS ServiceLevel, Fee AS TotalCost, CustomerName, PhoneNumber, '-' AS PlateNumber, 'Cetak KTL' AS ServiceName
+			FROM dbo.OrderKTLs
+		) AS CombinedOrders
+		ORDER BY OrderDate DESC
+	`
+	err := r.db.Raw(query).Scan(&orders).Error
 	return orders, err
 }
 
@@ -79,19 +82,15 @@ func (r *dashboardRepository) GetPendingActions() (dto.PendingActionsResponse, e
 	var res dto.PendingActionsResponse
 	
 	// Unverified Documents (IsVerified = 0)
-	err := r.db.Table("dbo.OrderDocuments").Where("IsVerified = ? AND DeletedAt IS NULL", 0).Count(&res.UnverifiedDocuments).Error
-	if err != nil {
-		return res, err
-	}
+	r.db.Table("dbo.OrderDocuments").Where("IsVerified = ? AND DeletedAt IS NULL", 0).Count(&res.UnverifiedDocuments)
 
 	// Stuck Orders (Status = Processing AND OrderDate > 3 days ago)
-	// SQL Server specific DATEDIFF
-	err = r.db.Table("dbo.Orders").
+	r.db.Table("dbo.Orders").
 		Where("Status = ? AND DATEDIFF(day, OrderDate, GETDATE()) >= ?", "Processing", 3).
-		Count(&res.StuckOrders).Error
-	if err != nil {
-		return res, err
-	}
+		Count(&res.StuckOrders)
+	r.db.Table("dbo.OrderKTLs").
+		Where("Status = ? AND DATEDIFF(day, OrderDate, GETDATE()) >= ?", "Processing", 3).
+		Count(&res.StuckKTLs)
 
 	return res, nil
 }
@@ -113,11 +112,16 @@ func (r *dashboardRepository) GetChartData() ([]dto.DashboardChartResponse, erro
 	var res []dto.DashboardChartResponse
 	// Last 30 days of data grouped by date
 	query := `
+		WITH CombinedData AS (
+			SELECT OrderDate, ID, TotalCost as Revenue FROM dbo.Orders
+			UNION ALL
+			SELECT OrderDate, ID, Fee as Revenue FROM dbo.OrderKTLs
+		)
 		SELECT TOP 30
 			CAST(OrderDate AS DATE) as Date,
 			COUNT(ID) as OrderCount,
-			SUM(TotalCost) as Revenue
-		FROM dbo.Orders
+			SUM(Revenue) as Revenue
+		FROM CombinedData
 		GROUP BY CAST(OrderDate AS DATE)
 		ORDER BY Date DESC
 	`

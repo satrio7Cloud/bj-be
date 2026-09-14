@@ -58,6 +58,14 @@ func (u *documentUsecase) CreateDocument(ctx context.Context, req dto.CreateDocu
 			folderName = strings.ReplaceAll(folderName, " ", "-")
 			// Bersihkan karakter aneh jika perlu, tapi replace spasi minimal cukup
 		}
+	} else {
+		// Jika tidak ditemukan di tabel Order reguler, cari di tabel OrderKTL
+		orderKTL, errKTL := u.orderRepo.FindOrderKTLByID(req.OrderID)
+		if errKTL == nil && orderKTL != nil {
+			folderName = "cetak-ktl"
+		} else {
+			return errors.New("pesanan tidak valid atau tidak ditemukan")
+		}
 	}
 
 	// 1. Upload ke MinIO
@@ -96,7 +104,7 @@ func (u *documentUsecase) GetDocumentsByOrder(orderID string) ([]dto.DocumentRes
 		return nil, err
 	}
 
-	var responses []dto.DocumentResponse
+	responses := make([]dto.DocumentResponse, 0)
 	for _, d := range documents {
 		responses = append(responses, mapDocumentToResponse(d))
 	}

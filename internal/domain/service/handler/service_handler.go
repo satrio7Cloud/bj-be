@@ -59,3 +59,35 @@ func (h *ServiceHandler) GetServices(c *fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": constants.StatusSuccess, "data": services})
 }
+
+// @Summary Update Service
+// @Description Update an existing master service catalog item
+// @Tags services
+// @Accept json
+// @Produce json
+// @Param id path string true "Service ID"
+// @Param request body dto.UpdateServiceRequest true "Service Data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/services/{id} [put]
+func (h *ServiceHandler) UpdateService(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req dto.UpdateServiceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": constants.StatusError, "message": constants.MsgInvalidRequest})
+	}
+	if validationErrors := utils.ValidateStruct(req); validationErrors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": constants.StatusError, "message": constants.MsgInvalidRequest, "errors": validationErrors})
+	}
+
+	if err := h.serviceUsecase.UpdateService(id, req); err != nil {
+		if err.Error() == "layanan tidak ditemukan" {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"status": constants.StatusError, "message": err.Error()})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": constants.StatusError, "message": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": constants.StatusSuccess, "message": "Layanan berhasil diupdate"})
+}

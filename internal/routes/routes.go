@@ -14,6 +14,7 @@ import (
 	vehicleRoutes "bj/internal/domain/vehicle/routes"
 	invoiceRoutes "bj/internal/domain/invoice/routes"
 	dashboardRoutes "bj/internal/domain/dashboard/routes"
+	notificationRoutes "bj/internal/domain/notification/routes"
 )
 
 // RegisterRoutes adalah pusat pendaftaran semua routing di aplikasi.
@@ -33,4 +34,5 @@ func RegisterRoutes(app fiber.Router, c *di.Container) {
 	vehicleRoutes.RegisterVehicleRoutes(api, c.VehicleHdl)
 	dashboardRoutes.RegisterDashboardRoutes(api, c.DashboardHdl)
 	invoiceRoutes.RegisterInvoiceRoutes(api, c.InvoiceHdl)
+	notificationRoutes.RegisterNotificationRoutes(api, c.NotificationHdl)
 }

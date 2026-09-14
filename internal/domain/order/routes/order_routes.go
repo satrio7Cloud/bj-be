@@ -9,12 +9,16 @@ import (
 func RegisterOrderRoutes(router fiber.Router, orderHandler *handler.OrderHandler) {
 	// Rute Publik (Customer Web)
 	router.Post("/orders/customer", orderHandler.CreateOrderCustomer)
+	router.Post("/orders/ktl", orderHandler.CreateOrderKTL)
 
 	// Semua rute Order Admin harus diproteksi dengan JWT
 	orderGroup := router.Group("/orders", middleware.Protected())
 
 	orderGroup.Post("/admin", orderHandler.CreateOrderAdmin)
 	orderGroup.Get("/", orderHandler.GetOrders)
+	orderGroup.Get("/ktl", orderHandler.GetAllOrderKTLs)
+	orderGroup.Patch("/ktl/:id/status", orderHandler.UpdateOrderKTLStatus)
+	orderGroup.Get("/ktl/:id", orderHandler.GetOrderKTLByID)
 	orderGroup.Get("/:id", orderHandler.GetOrderByID)
 	orderGroup.Patch("/:id/status", orderHandler.UpdateOrderStatus)
 }

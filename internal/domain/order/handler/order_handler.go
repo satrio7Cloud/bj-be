@@ -6,6 +6,8 @@ import (
 	"bj/internal/domain/order/usecase"
 	"bj/internal/utils"
 
+	"context"
+	"strconv"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -196,5 +198,154 @@ func (h *OrderHandler) UpdateOrderStatus(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status":  constants.StatusSuccess,
 		"message": "Status pesanan berhasil diperbarui",
+	})
+}
+
+// @Summary Create Order KTL
+// @Description Create a new KTL print request with file uploads in one step
+// @Tags orders
+// @Accept multipart/form-data
+// @Produce json
+// @Param customer_name formData string true "Customer Name"
+// @Param phone_number formData string true "Phone Number"
+// @Param vehicle_type formData string true "Vehicle Type"
+// @Param region formData string true "Region"
+// @Param fee formData number true "Fee"
+// @Param merchant_ref formData string false "Merchant Ref"
+// @Param bukti_ktl formData file false "Foto KTL Lama"
+// @Param bukti_pembayaran formData file false "Bukti Pembayaran"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/orders/ktl [post]
+func (h *OrderHandler) CreateOrderKTL(c *fiber.Ctx) error {
+	var req dto.CreateOrderKTLRequest
+
+	// Manual parsing for multipart/form-data
+	req.CustomerName = c.FormValue("customer_name")
+	req.PhoneNumber = c.FormValue("phone_number")
+	req.VehicleType = c.FormValue("vehicle_type")
+	req.Region = c.FormValue("region")
+	req.MerchantRef = c.FormValue("merchant_ref")
+	
+	feeStr := c.FormValue("fee")
+	if feeStr != "" {
+		feeFloat, err := strconv.ParseFloat(feeStr, 64)
+		if err == nil {
+			req.Fee = feeFloat
+		}
+	}
+
+	if validationErrors := utils.ValidateStruct(req); validationErrors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  constants.StatusError,
+			"message": constants.MsgInvalidRequest,
+			"errors":  validationErrors,
+		})
+	}
+
+	ctx := context.Background()
+	fileKtl, _ := c.FormFile("bukti_ktl")
+	filePembayaran, _ := c.FormFile("bukti_pembayaran")
+
+	resp, err := h.orderUsecase.CreateOrderKTL(ctx, req, fileKtl, filePembayaran)
+	if err != nil {
+		return utils.HandleError(c, err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"status":  constants.StatusSuccess,
+		"message": "Permintaan cetak KTL berhasil dibuat",
+		"data":    resp,
+	})
+}
+
+// @Summary Get All Order KTLs
+// @Description Get all KTL orders with pagination
+// @Tags orders
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/orders/ktl [get]
+func (h *OrderHandler) GetAllOrderKTLs(c *fiber.Ctx) error {
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+
+	orders, err := h.orderUsecase.GetAllOrderKTLs(page, limit)
+	if err != nil {
+		return utils.HandleError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status": constants.StatusSuccess,
+		"data":   orders,
+	})
+}
+
+// @Summary Get Order KTL by ID
+// @Description Get specific KTL order details
+// @Tags orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order KTL ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Router /api/v1/orders/ktl/{id} [get]
+func (h *OrderHandler) GetOrderKTLByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	order, err := h.orderUsecase.GetOrderKTLByID(id)
+	if err != nil {
+		return utils.HandleError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status": constants.StatusSuccess,
+		"data":   order,
+	})
+}
+
+// @Summary Update Order KTL Status
+// @Description Update the processing status of a KTL order
+// @Tags orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order KTL ID"
+// @Param request body dto.UpdateOrderStatusRequest true "Status Update Data"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/orders/ktl/{id}/status [patch]
+func (h *OrderHandler) UpdateOrderKTLStatus(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req dto.UpdateOrderStatusRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  constants.StatusError,
+			"message": constants.MsgInvalidRequest,
+		})
+	}
+
+	if validationErrors := utils.ValidateStruct(req); validationErrors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  constants.StatusError,
+			"message": constants.MsgInvalidRequest,
+			"errors":  validationErrors,
+		})
+	}
+
+	adminID := c.Locals("admin_id").(string)
+
+	err := h.orderUsecase.UpdateOrderKTLStatus(id, req, adminID)
+	if err != nil {
+		return utils.HandleError(c, err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status":  constants.StatusSuccess,
+		"message": "Status KTL berhasil diperbarui",
 	})
 }
