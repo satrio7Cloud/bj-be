@@ -13,10 +13,11 @@ type NotificationUsecase interface {
 
 type notificationUsecase struct {
 	repo repository.NotificationRepository
+	cron string
 }
 
-func NewNotificationUsecase(repo repository.NotificationRepository) NotificationUsecase {
-	return &notificationUsecase{repo: repo}
+func NewNotificationUsecase(repo repository.NotificationRepository, cron string) NotificationUsecase {
+	return &notificationUsecase{repo: repo, cron: cron}
 }
 
 func (u *notificationUsecase) GetUnreadNotifications(limit int) ([]dto.NotificationResponse, error) {

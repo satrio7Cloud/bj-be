@@ -13,7 +13,7 @@ type DashboardRepository interface {
 	GetTopServices() ([]dto.TopServiceResponse, error)
 	GetChartData() ([]dto.DashboardChartResponse, error)
 	GetRecentActivities() ([]dto.DashboardActivityResponse, error)
-	GetOrders() ([]entity.DashboardOrder, error)
+	GetOrders(page, limit int) ([]entity.DashboardOrder, int64, error)
 }
 
 type dashboardRepository struct {
@@ -62,20 +62,30 @@ func (r *dashboardRepository) GetSummary() (dto.DashboardSummaryResponse, error)
 	return summary, nil
 }
 
-func (r *dashboardRepository) GetOrders() ([]entity.DashboardOrder, error) {
+func (r *dashboardRepository) GetOrders(page, limit int) ([]entity.DashboardOrder, int64, error) {
 	var orders []entity.DashboardOrder
-	query := `
-		SELECT * FROM (
-			SELECT CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName
-			FROM vw_DashboardOrderList
-			UNION ALL
-			SELECT CAST(ID AS VARCHAR(36)) AS OrderID, OrderDate, Status, 'STANDARD' AS ServiceLevel, Fee AS TotalCost, CustomerName, PhoneNumber, '-' AS PlateNumber, 'Cetak KTL' AS ServiceName
-			FROM dbo.OrderKTLs
-		) AS CombinedOrders
-		ORDER BY OrderDate DESC
+	var total int64
+
+	baseQuery := `FROM vw_DashboardOrderList`
+
+	countQuery := `SELECT COUNT(*) ` + baseQuery
+	if err := r.db.Raw(countQuery).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * limit
+	dataQuery := `
+		SELECT CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName 
+		` + baseQuery + ` 
+		ORDER BY OrderDate DESC 
+		OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
 	`
-	err := r.db.Raw(query).Scan(&orders).Error
-	return orders, err
+	
+	if err := r.db.Raw(dataQuery, offset, limit).Scan(&orders).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return orders, total, nil
 }
 
 func (r *dashboardRepository) GetPendingActions() (dto.PendingActionsResponse, error) {
@@ -98,10 +108,19 @@ func (r *dashboardRepository) GetPendingActions() (dto.PendingActionsResponse, e
 func (r *dashboardRepository) GetTopServices() ([]dto.TopServiceResponse, error) {
 	var res []dto.TopServiceResponse
 	query := `
-		SELECT TOP 5 S.ServiceName, COUNT(O.ID) as OrderCount
-		FROM dbo.Orders O
-		JOIN dbo.MasterServices S ON O.ServiceID = S.ID
-		GROUP BY S.ServiceName
+		WITH CombinedServices AS (
+			SELECT S.ServiceName
+			FROM dbo.Orders O
+			JOIN dbo.MasterServices S ON O.ServiceID = S.ID
+			
+			UNION ALL
+			
+			SELECT 'Cetak KTL' AS ServiceName
+			FROM dbo.OrderKTLs
+		)
+		SELECT TOP 5 ServiceName, COUNT(*) as OrderCount
+		FROM CombinedServices
+		GROUP BY ServiceName
 		ORDER BY OrderCount DESC
 	`
 	err := r.db.Raw(query).Scan(&res).Error
@@ -114,8 +133,10 @@ func (r *dashboardRepository) GetChartData() ([]dto.DashboardChartResponse, erro
 	query := `
 		WITH CombinedData AS (
 			SELECT OrderDate, ID, TotalCost as Revenue FROM dbo.Orders
+			WHERE OrderDate >= CAST(DATEADD(day, -30, GETDATE()) AS DATE)
 			UNION ALL
 			SELECT OrderDate, ID, Fee as Revenue FROM dbo.OrderKTLs
+			WHERE OrderDate >= CAST(DATEADD(day, -30, GETDATE()) AS DATE)
 		)
 		SELECT TOP 30
 			CAST(OrderDate AS DATE) as Date,

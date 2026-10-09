@@ -35,4 +35,9 @@ type Order struct {
 
 	Notes     string    `gorm:"type:varchar(max)"`
 	OrderDate time.Time `gorm:"autoCreateTime"`
+
+	TrackingNumber      *string   `gorm:"type:varchar(100)"`
+	CourierName         *string   `gorm:"type:varchar(50)"`
+	CourierService      *string   `gorm:"type:varchar(100)"`
+	ShippingCost        float64   `gorm:"type:decimal(18,2);default:0"`
 }

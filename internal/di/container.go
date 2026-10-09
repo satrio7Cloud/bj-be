@@ -11,6 +11,8 @@ import (
 	"bj/internal/shared/storage"
 
 	redisPkg "github.com/redis/go-redis/v9"
+	"github.com/midtrans/midtrans-go"
+	"github.com/midtrans/midtrans-go/snap"
 
 	adminHandler "bj/internal/domain/user/handler"
 	adminRepository "bj/internal/domain/user/repository"
@@ -57,6 +59,13 @@ import (
 	notificationHandler "bj/internal/domain/notification/handler"
 	notificationRepository "bj/internal/domain/notification/repository"
 	notificationUsecase "bj/internal/domain/notification/usecase"
+
+	biteshipHandler "bj/internal/domain/biteship/handler"
+	biteshipService "bj/internal/domain/biteship/service"
+	biteshipUsecase "bj/internal/domain/biteship/usecase"
+
+	paymentHandler "bj/internal/domain/payment/handler"
+	paymentUsecase "bj/internal/domain/payment/usecase"
 
 	"gorm.io/gorm"
 )
@@ -122,6 +131,15 @@ type Container struct {
 	NotificationRepo notificationRepository.NotificationRepository
 	NotificationUC   notificationUsecase.NotificationUsecase
 	NotificationHdl  *notificationHandler.NotificationHandler
+
+	// Biteship Domain
+	BiteshipSvc biteshipService.BiteshipService
+	BiteshipUC  biteshipUsecase.BiteshipUsecase
+	BiteshipHdl *biteshipHandler.BiteshipHandler
+
+	// Payment Domain
+	PaymentUC  paymentUsecase.PaymentUsecase
+	PaymentHdl *paymentHandler.PaymentHandler
 }
 
 // NewContainer melakukan inisialisasi semua repository, usecase, dan handler
@@ -152,6 +170,14 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	// 1.7 Setup Qris Generator
 	qrisGenerator := qris.NewQrisGenerator(cfg)
 
+	// 1.8 Setup Midtrans Snap Client
+	var snapClient snap.Client
+	midtransEnv := midtrans.Sandbox
+	if cfg.Midtrans.Env == "production" {
+		midtransEnv = midtrans.Production
+	}
+	snapClient.New(cfg.Midtrans.ServerKey, midtransEnv)
+
 	// 2. Setup Admin Domain
 	adminRepo := adminRepository.NewAdminRepository(db)
 	adminUC := adminUsecase.NewAdminUsecase(adminRepo)
@@ -172,7 +198,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	orderRepo := orderRepository.NewOrderRepository(db)
 	orderLogRepo := orderlogRepository.NewOrderLogRepository(db)
 	serviceRepo := serviceRepository.NewServiceRepository(db)
-	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo, storageService)
+	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo, storageService, snapClient)
 	orderHdl := orderHandler.NewOrderHandler(orderUC)
 
 	serviceUC := serviceUsecase.NewServiceUsecase(serviceRepo, redisClient)
@@ -196,8 +222,15 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	invoiceHdl := invoiceHandler.NewInvoiceHandler(invoiceUC)
 
 	notificationRepo := notificationRepository.NewNotificationRepository(db)
-	notificationUC := notificationUsecase.NewNotificationUsecase(notificationRepo)
+	notificationUC := notificationUsecase.NewNotificationUsecase(notificationRepo, cfg.NotificationCron)
 	notificationHdl := notificationHandler.NewNotificationHandler(notificationUC)
+
+	biteshipSvc := biteshipService.NewBiteshipService(cfg)
+	biteshipUC := biteshipUsecase.NewBiteshipUsecase(biteshipSvc, cfg.Biteship.DefaultCouriers, cfg.Biteship.OriginPostalCode)
+	biteshipHdl := biteshipHandler.NewBiteshipHandler(biteshipUC)
+
+	paymentUC := paymentUsecase.NewPaymentUsecase(orderUC)
+	paymentHdl := paymentHandler.NewPaymentHandler(paymentUC)
 
 	// Start Cronjob Scheduler in background
 	go notificationUC.StartNotificationScheduler()
@@ -242,5 +275,10 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		NotificationRepo: notificationRepo,
 		NotificationUC:   notificationUC,
 		NotificationHdl:  notificationHdl,
+		BiteshipSvc:      biteshipSvc,
+		BiteshipUC:       biteshipUC,
+		BiteshipHdl:      biteshipHdl,
+		PaymentUC:        paymentUC,
+		PaymentHdl:       paymentHdl,
 	}, nil
 }

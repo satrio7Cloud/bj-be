@@ -40,34 +40,44 @@ type MidtransConfig struct {
 	Env        string
 }
 
+type BiteshipConfig struct {
+	APIKey           string
+	BaseURL          string
+	DefaultCouriers  string
+	OriginPostalCode string
+}
+
 type Config struct {
-	AppHost   string
-	AppPort   string
-	SQLServer SQLServerConfig
-	MinIO     MinIOConfig
-	Redis     RedisConfig
-	Qris      QrisConfig
-	Midtrans  MidtransConfig
+	AppHost          string
+	AppPort          string
+	NotificationCron string
+	SQLServer        SQLServerConfig
+	MinIO            MinIOConfig
+	Redis            RedisConfig
+	Qris             QrisConfig
+	Midtrans         MidtransConfig
+	Biteship         BiteshipConfig
 }
 
 func LoadConfig() *Config {
 	// Mencoba memuat file .env dari beberapa kemungkinan lokasi (root atau dalam folder cmd)
-	err := godotenv.Load(".env")
+	err := godotenv.Overload(".env")
 	if err != nil {
-		err = godotenv.Load("../../.env")
+		err = godotenv.Overload("../../.env")
 	}
 	if err != nil {
 		log.Println("Peringatan: File .env tidak ditemukan, menggunakan nilai bawaan OS")
 	}
 
 	dbHost := os.Getenv("DB_HOST")
-	if dbHost == "localhost" || dbHost == "" {
+	if dbHost == "localhost" {
 		dbHost = "127.0.0.1"
 	}
 
 	return &Config{
-		AppHost: os.Getenv("APP_HOST"),
-		AppPort: os.Getenv("APP_PORT"),
+		AppHost:          os.Getenv("APP_HOST"),
+		AppPort:          os.Getenv("APP_PORT"),
+		NotificationCron: os.Getenv("CRON_SCHEDULE_NOTIFICATION"),
 		SQLServer: SQLServerConfig{
 			Host:     dbHost,
 			Port:     os.Getenv("DB_PORT"),
@@ -95,6 +105,12 @@ func LoadConfig() *Config {
 			ClientKey:  os.Getenv("MIDTRANS_CLIENT_KEY"),
 			ServerKey:  os.Getenv("MIDTRANS_SERVER_KEY"),
 			Env:        os.Getenv("MIDTRANS_ENV"),
+		},
+		Biteship: BiteshipConfig{
+			APIKey:           os.Getenv("BITESHIP_API_KEY"),
+			BaseURL:          os.Getenv("BITESHIP_BASE_URL"),
+			DefaultCouriers:  os.Getenv("BITESHIP_DEFAULT_COURIERS"),
+			OriginPostalCode: os.Getenv("BITESHIP_ORIGIN_POSTAL_CODE"),
 		},
 	}
 }

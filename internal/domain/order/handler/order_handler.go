@@ -211,9 +211,8 @@ func (h *OrderHandler) UpdateOrderStatus(c *fiber.Ctx) error {
 // @Param vehicle_type formData string true "Vehicle Type"
 // @Param region formData string true "Region"
 // @Param fee formData number true "Fee"
-// @Param merchant_ref formData string false "Merchant Ref"
+// @Param fee formData number true "Fee"
 // @Param bukti_ktl formData file false "Foto KTL Lama"
-// @Param bukti_pembayaran formData file false "Bukti Pembayaran"
 // @Success 201 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
@@ -226,7 +225,6 @@ func (h *OrderHandler) CreateOrderKTL(c *fiber.Ctx) error {
 	req.PhoneNumber = c.FormValue("phone_number")
 	req.VehicleType = c.FormValue("vehicle_type")
 	req.Region = c.FormValue("region")
-	req.MerchantRef = c.FormValue("merchant_ref")
 	
 	feeStr := c.FormValue("fee")
 	if feeStr != "" {
@@ -246,9 +244,8 @@ func (h *OrderHandler) CreateOrderKTL(c *fiber.Ctx) error {
 
 	ctx := context.Background()
 	fileKtl, _ := c.FormFile("bukti_ktl")
-	filePembayaran, _ := c.FormFile("bukti_pembayaran")
 
-	resp, err := h.orderUsecase.CreateOrderKTL(ctx, req, fileKtl, filePembayaran)
+	resp, err := h.orderUsecase.CreateOrderKTL(ctx, req, fileKtl)
 	if err != nil {
 		return utils.HandleError(c, err)
 	}

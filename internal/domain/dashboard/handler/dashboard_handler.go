@@ -45,14 +45,24 @@ func (h *DashboardHandler) GetSummary(c *fiber.Ctx) error {
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/dashboard/orders [get]
 func (h *DashboardHandler) GetOrders(c *fiber.Ctx) error {
-	orders, err := h.dashboardUsecase.GetDashboardOrders()
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+
+	orders, total, err := h.dashboardUsecase.GetDashboardOrders(page, limit)
 	if err != nil {
 		return utils.HandleError(c, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"status": constants.StatusSuccess,
-		"data":   orders,
+		"code":    fiber.StatusOK,
+		"status":  constants.StatusSuccess,
+		"message": "Successfully retrieved dashboard orders",
+		"data":    orders,
+		"meta": fiber.Map{
+			"page":          page,
+			"limit":         limit,
+			"total_records": total,
+		},
 	})
 }
 

@@ -14,4 +14,9 @@ type OrderKTL struct {
 	BuktiKtlPath        *string   `gorm:"type:varchar(255)"`
 	BuktiPembayaranPath *string   `gorm:"type:varchar(255)"`
 	OrderDate           time.Time `gorm:"autoCreateTime"`
+	
+	TrackingNumber      *string   `gorm:"type:varchar(100)"`
+	CourierName         *string   `gorm:"type:varchar(50)"`
+	CourierService      *string   `gorm:"type:varchar(100)"`
+	ShippingCost        float64   `gorm:"type:decimal(18,2);default:0"`
 }

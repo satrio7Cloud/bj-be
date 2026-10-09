@@ -13,9 +13,7 @@ func (u *notificationUsecase) StartNotificationScheduler() {
 	// Buat scheduler cron baru
 	c := cron.New()
 
-	// Jalankan setiap jam 8 pagi ("0 8 * * *")
-	// _, err := c.AddFunc("0 8 * * *", func() {
-	_, err := c.AddFunc("*/1 * * * *", func() {
+	_, err := c.AddFunc(u.cron, func() {
 		log.Println("[CRON] Menjalankan pengecekan notifikasi harian...")
 		u.scanAndNotify()
 	})

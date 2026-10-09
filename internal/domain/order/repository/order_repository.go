@@ -96,11 +96,11 @@ func (r *orderRepository) UpdateStatus(id string, status string) error {
 
 func (r *orderRepository) CreateOrderKTL(order *entity.OrderKTL) error {
 	query := `INSERT INTO dbo.OrderKTLs (
-		ID, CustomerName, PhoneNumber, VehicleType, Region, Fee, MerchantRef, Status, OrderDate
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		ID, CustomerName, PhoneNumber, VehicleType, Region, Fee, MerchantRef, Status, OrderDate, BuktiKtlPath, BuktiPembayaranPath
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	return r.db.Exec(query,
-		order.ID, order.CustomerName, order.PhoneNumber, order.VehicleType, order.Region, order.Fee, order.MerchantRef, order.Status, order.OrderDate,
+		order.ID, order.CustomerName, order.PhoneNumber, order.VehicleType, order.Region, order.Fee, order.MerchantRef, order.Status, order.OrderDate, order.BuktiKtlPath, order.BuktiPembayaranPath,
 	).Error
 }
 
@@ -111,7 +111,7 @@ func (r *orderRepository) FindAllOrderKTL(page int, limit int) ([]entity.OrderKT
 
 	query := `SELECT 
 		CAST(ID AS VARCHAR(36)) AS ID, CustomerName, PhoneNumber, VehicleType, 
-		Region, Fee, MerchantRef, Status, OrderDate 
+		Region, Fee, MerchantRef, Status, OrderDate, BuktiKtlPath, BuktiPembayaranPath
 		FROM dbo.OrderKTLs 
 		ORDER BY OrderDate DESC 
 		OFFSET ? ROWS 
@@ -130,7 +130,7 @@ func (r *orderRepository) FindOrderKTLByID(id string) (*entity.OrderKTL, error) 
 	var order entity.OrderKTL
 	query := `SELECT 
 		CAST(ID AS VARCHAR(36)) AS ID, CustomerName, PhoneNumber, VehicleType, 
-		Region, Fee, MerchantRef, Status, OrderDate 
+		Region, Fee, MerchantRef, Status, OrderDate, BuktiKtlPath, BuktiPembayaranPath
 	FROM dbo.OrderKTLs WHERE ID = ?`
 	res := r.db.Raw(query, id).Scan(&order)
 

@@ -17,6 +17,8 @@ import (
 	"mime/multipart"
 
 	"github.com/google/uuid"
+	"github.com/midtrans/midtrans-go"
+	"github.com/midtrans/midtrans-go/snap"
 )
 
 type OrderUsecase interface {
@@ -25,7 +27,7 @@ type OrderUsecase interface {
 	GetAllOrders(page int, limit int) ([]dto.OrderResponse, error)
 	GetOrderByID(id string) (*dto.OrderResponse, error)
 	UpdateOrderStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error
-	CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader, filePem *multipart.FileHeader) (dto.OrderKTLResponse, error)
+	CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader) (dto.OrderKTLResponse, error)
 	GetAllOrderKTLs(page int, limit int) ([]dto.OrderKTLResponse, error)
 	GetOrderKTLByID(id string) (*dto.OrderKTLResponse, error)
 	UpdateOrderKTLStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error
@@ -36,14 +38,16 @@ type orderUsecase struct {
 	orderLogRepo   logRepo.OrderLogRepository
 	serviceRepo    srvRepo.ServiceRepository
 	storageService storage.StorageService
+	snapClient     snap.Client
 }
 
-func NewOrderUsecase(repo repository.OrderRepository, logRepo logRepo.OrderLogRepository, serviceRepo srvRepo.ServiceRepository, storageService storage.StorageService) OrderUsecase {
+func NewOrderUsecase(repo repository.OrderRepository, logRepo logRepo.OrderLogRepository, serviceRepo srvRepo.ServiceRepository, storageService storage.StorageService, snapClient snap.Client) OrderUsecase {
 	return &orderUsecase{
 		orderRepo:      repo,
 		orderLogRepo:   logRepo,
 		serviceRepo:    serviceRepo,
 		storageService: storageService,
+		snapClient:     snapClient,
 	}
 }
 
@@ -329,7 +333,7 @@ func (u *orderUsecase) UpdateOrderStatus(id string, req dto.UpdateOrderStatusReq
 	return nil
 }
 
-func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader, filePem *multipart.FileHeader) (dto.OrderKTLResponse, error) {
+func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKTLRequest, fileKtl *multipart.FileHeader) (dto.OrderKTLResponse, error) {
 	// Validasi input
 	if req.Fee <= 0 {
 		return dto.OrderKTLResponse{}, errors.New("fee harus lebih dari 0")
@@ -348,12 +352,7 @@ func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKT
 		return dto.OrderKTLResponse{}, errors.New("vehicle type harus Motor atau Mobil")
 	}
 
-	var merchantRefPtr *string
-	if req.MerchantRef != "" {
-		merchantRefPtr = &req.MerchantRef
-	}
-
-	var buktiKTLPath, buktiPemPath *string
+	var buktiKTLPath *string
 
 	if fileKtl != nil && u.storageService != nil {
 		path, err := u.storageService.UploadFile(ctx, fileKtl, "cetak-ktl")
@@ -364,16 +363,30 @@ func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKT
 		}
 	}
 
-	if filePem != nil && u.storageService != nil {
-		path, err := u.storageService.UploadFile(ctx, filePem, "cetak-ktl")
-		if err == nil {
-			buktiPemPath = &path
-		} else {
-			println("Warning: gagal upload bukti pembayaran -", err.Error())
-		}
+	newID := uuid.New().String()
+
+	// Integrasi Midtrans Snap
+	snapReq := &snap.Request{
+		TransactionDetails: midtrans.TransactionDetails{
+			OrderID:  newID,
+			GrossAmt: int64(req.Fee),
+		},
+		CustomerDetail: &midtrans.CustomerDetails{
+			FName: req.CustomerName,
+			Phone: req.PhoneNumber,
+		},
+	}
+	
+	snapResp, snapErr := u.snapClient.CreateTransaction(snapReq)
+	var snapToken string
+	if snapErr != nil {
+		// Log error but we might still want to proceed or fail
+		println("ERROR GAGAL CREATE SNAP MIDTRANS:", snapErr.GetMessage())
+		return dto.OrderKTLResponse{}, errors.New("gagal membuat transaksi pembayaran")
+	} else {
+		snapToken = snapResp.Token
 	}
 
-	newID := uuid.New().String()
 	orderKTL := &entity.OrderKTL{
 		ID:                  newID,
 		CustomerName:        req.CustomerName,
@@ -381,13 +394,12 @@ func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKT
 		VehicleType:         req.VehicleType,
 		Region:              req.Region,
 		Fee:                 req.Fee,
-		MerchantRef:         merchantRefPtr,
-		Status:              constants.OrderKTLStatusPending,
+		MerchantRef:         nil, // Null
+		Status:              "Menunggu Pembayaran",
 		BuktiKtlPath:        buktiKTLPath,
-		BuktiPembayaranPath: buktiPemPath,
-		OrderDate:           time.Time{}, // Let DB handle this or use time.Now()
+		BuktiPembayaranPath: nil, // Null
+		OrderDate:           time.Now(),
 	}
-	orderKTL.OrderDate = time.Now()
 
 	err := u.orderRepo.CreateOrderKTL(orderKTL)
 	if err != nil {
@@ -405,6 +417,7 @@ func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKT
 		Status:              orderKTL.Status,
 		BuktiKtlPath:        orderKTL.BuktiKtlPath,
 		BuktiPembayaranPath: orderKTL.BuktiPembayaranPath,
+		SnapToken:           snapToken,
 		OrderDate:           orderKTL.OrderDate,
 	}
 

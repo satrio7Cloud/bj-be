@@ -3,17 +3,17 @@ package routes
 import (
 	"bj/internal/domain/order/handler"
 	"bj/middleware"
+
 	"github.com/gofiber/fiber/v2"
 )
 
 func RegisterOrderRoutes(router fiber.Router, orderHandler *handler.OrderHandler) {
-	// Rute Publik (Customer Web)
+	// Route Customer
 	router.Post("/orders/customer", orderHandler.CreateOrderCustomer)
 	router.Post("/orders/ktl", orderHandler.CreateOrderKTL)
 
-	// Semua rute Order Admin harus diproteksi dengan JWT
+	// Route Admin
 	orderGroup := router.Group("/orders", middleware.Protected())
-
 	orderGroup.Post("/admin", orderHandler.CreateOrderAdmin)
 	orderGroup.Get("/", orderHandler.GetOrders)
 	orderGroup.Get("/ktl", orderHandler.GetAllOrderKTLs)

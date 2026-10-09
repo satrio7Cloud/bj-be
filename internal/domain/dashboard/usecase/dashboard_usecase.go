@@ -7,7 +7,7 @@ import (
 
 type DashboardUsecase interface {
 	GetDashboardSummary() (dto.DashboardSummaryResponse, error)
-	GetDashboardOrders() ([]dto.DashboardOrderResponse, error)
+	GetDashboardOrders(page, limit int) ([]dto.DashboardOrderResponse, int64, error)
 	GetChartData() ([]dto.DashboardChartResponse, error)
 	GetRecentActivities() ([]dto.DashboardActivityResponse, error)
 }
@@ -39,10 +39,10 @@ func (u *dashboardUsecase) GetDashboardSummary() (dto.DashboardSummaryResponse, 
 	return summary, nil
 }
 
-func (u *dashboardUsecase) GetDashboardOrders() ([]dto.DashboardOrderResponse, error) {
-	orders, err := u.dashboardRepo.GetOrders()
+func (u *dashboardUsecase) GetDashboardOrders(page, limit int) ([]dto.DashboardOrderResponse, int64, error) {
+	orders, total, err := u.dashboardRepo.GetOrders(page, limit)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var responses []dto.DashboardOrderResponse
@@ -60,7 +60,7 @@ func (u *dashboardUsecase) GetDashboardOrders() ([]dto.DashboardOrderResponse, e
 		})
 	}
 
-	return responses, nil
+	return responses, total, nil
 }
 
 func (u *dashboardUsecase) GetChartData() ([]dto.DashboardChartResponse, error) {

@@ -9,9 +9,10 @@ const (
 	OrderStatusRejected   = "Rejected"
 
 	// Status Order KTL khusus
-	OrderKTLStatusPending    = "Pending"
-	OrderKTLStatusPaid       = "Paid"
-	OrderKTLStatusProcessing = "Processing"
-	OrderKTLStatusCompleted  = "Completed"
-	OrderKTLStatusCancelled  = "Cancelled"
+	OrderKTLStatusPending           = "Pending"
+	OrderKTLStatusPaid              = "Paid"
+	OrderKTLStatusProcessing        = "Processing"
+	OrderKTLStatusCompleted         = "Completed"
+	OrderKTLStatusCancelled         = "Cancelled"
+	OrderKTLStatusWaitingForPayment = "Waiting For Payment"
 )
