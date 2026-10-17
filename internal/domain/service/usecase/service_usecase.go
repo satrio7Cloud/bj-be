@@ -44,6 +44,7 @@ func mapServiceToResponse(s entity.Service) dto.ServiceResponse {
 		ExpressFee:       s.ExpressFee,
 		AdminFee:         s.AdminFee,
 		PhysicalCheckFee: s.PhysicalCheckFee,
+		SWDKLLJFee:       s.SWDKLLJFee,
 		Description:      s.Description,
 		CreatedAt:        s.CreatedAt,
 	}
@@ -58,6 +59,7 @@ func (u *serviceUsecase) CreateService(req dto.CreateServiceRequest) error {
 		ExpressFee:       req.ExpressFee,
 		AdminFee:         req.AdminFee,
 		PhysicalCheckFee: req.PhysicalCheckFee,
+		SWDKLLJFee:       req.SWDKLLJFee,
 		Description:      req.Description,
 		CreatedAt:        time.Now(),
 	}
@@ -136,6 +138,7 @@ func (u *serviceUsecase) UpdateService(id string, req dto.UpdateServiceRequest) 
 	service.ExpressFee = req.ExpressFee
 	service.AdminFee = req.AdminFee
 	service.PhysicalCheckFee = req.PhysicalCheckFee
+	service.SWDKLLJFee = req.SWDKLLJFee
 	if req.Description != "" {
 		service.Description = req.Description
 	}

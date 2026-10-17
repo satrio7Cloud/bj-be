@@ -10,6 +10,7 @@ type VehicleRepository interface {
 	FindAll() ([]entity.Vehicle, error)
 	FindByCustomerID(customerID string) ([]entity.Vehicle, error)
 	FindByID(id string) (*entity.Vehicle, error)
+	FindByPlateNumber(plateNumber string) (*entity.Vehicle, error)
 	Update(vehicle *entity.Vehicle) error
 	Delete(id string) error
 }
@@ -53,6 +54,19 @@ func (r *vehicleRepository) FindByID(id string) (*entity.Vehicle, error) {
 		return nil, nil
 	}
 	
+	return &vehicle, nil
+}
+
+func (r *vehicleRepository) FindByPlateNumber(plateNumber string) (*entity.Vehicle, error) {
+	var vehicle entity.Vehicle
+	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, CAST(CustomerID AS VARCHAR(36)) AS CustomerID, CAST(ModelID AS VARCHAR(36)) AS ModelID, PlateNumber, Year FROM dbo.Vehicles WHERE PlateNumber = ?`
+	res := r.db.Raw(query, plateNumber).Scan(&vehicle)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, nil
+	}
 	return &vehicle, nil
 }
 

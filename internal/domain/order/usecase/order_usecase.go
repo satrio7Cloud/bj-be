@@ -1,20 +1,26 @@
 package usecase
 
 import (
+	"context"
 	"errors"
+	"mime/multipart"
+	"regexp"
 	"strings"
 	"time"
 
 	"bj/internal/constants"
+	biteshipUC "bj/internal/domain/biteship/usecase"
+	custEntity "bj/internal/domain/customer/entity"
+	custRepo "bj/internal/domain/customer/repository"
 	"bj/internal/domain/order/dto"
 	"bj/internal/domain/order/entity"
 	"bj/internal/domain/order/repository"
 	logEntity "bj/internal/domain/orderlog/entity"
 	logRepo "bj/internal/domain/orderlog/repository"
 	srvRepo "bj/internal/domain/service/repository"
+	vehEntity "bj/internal/domain/vehicle/entity"
+	vehRepo "bj/internal/domain/vehicle/repository"
 	"bj/internal/shared/storage"
-	"context"
-	"mime/multipart"
 
 	"github.com/google/uuid"
 	"github.com/midtrans/midtrans-go"
@@ -23,7 +29,7 @@ import (
 
 type OrderUsecase interface {
 	CreateOrderAdmin(req dto.CreateOrderAdminRequest, adminID string) (string, error)
-	CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (string, error)
+	CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (string, string, error)
 	GetAllOrders(page int, limit int) ([]dto.OrderResponse, error)
 	GetOrderByID(id string) (*dto.OrderResponse, error)
 	UpdateOrderStatus(id string, req dto.UpdateOrderStatusRequest, adminID string) error
@@ -37,15 +43,30 @@ type orderUsecase struct {
 	orderRepo      repository.OrderRepository
 	orderLogRepo   logRepo.OrderLogRepository
 	serviceRepo    srvRepo.ServiceRepository
+	customerRepo   custRepo.CustomerRepository
+	vehicleRepo    vehRepo.VehicleRepository
+	biteshipUC     biteshipUC.BiteshipUsecase
 	storageService storage.StorageService
 	snapClient     snap.Client
 }
 
-func NewOrderUsecase(repo repository.OrderRepository, logRepo logRepo.OrderLogRepository, serviceRepo srvRepo.ServiceRepository, storageService storage.StorageService, snapClient snap.Client) OrderUsecase {
+func NewOrderUsecase(
+	repo repository.OrderRepository,
+	logRepo logRepo.OrderLogRepository,
+	serviceRepo srvRepo.ServiceRepository,
+	customerRepo custRepo.CustomerRepository,
+	vehicleRepo vehRepo.VehicleRepository,
+	biteshipUC biteshipUC.BiteshipUsecase,
+	storageService storage.StorageService,
+	snapClient snap.Client,
+) OrderUsecase {
 	return &orderUsecase{
 		orderRepo:      repo,
 		orderLogRepo:   logRepo,
 		serviceRepo:    serviceRepo,
+		customerRepo:   customerRepo,
+		vehicleRepo:    vehicleRepo,
+		biteshipUC:     biteshipUC,
 		storageService: storageService,
 		snapClient:     snapClient,
 	}
@@ -83,6 +104,11 @@ func mapOrderToResponse(o entity.Order) dto.OrderResponse {
 
 		Notes:     o.Notes,
 		OrderDate: o.OrderDate,
+
+		TrackingNumber: o.TrackingNumber,
+		CourierName:    o.CourierName,
+		CourierService: o.CourierService,
+		ShippingCost:   o.ShippingCost,
 	}
 }
 
@@ -141,56 +167,173 @@ func (u *orderUsecase) CreateOrderAdmin(req dto.CreateOrderAdminRequest, adminID
 	return newID, nil
 }
 
-func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (string, error) {
+func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (string, string, error) {
 	newID := uuid.New().String()
+
+	// 0. Resolve Customer (Pakai ID jika ada, atau Cari / Buat otomatis dari data diri)
+	customerID := req.CustomerID
+	if customerID == "" {
+		if req.PhoneNumber == "" && req.NIK == "" {
+			return "", "", errors.New("nomor telepon atau NIK pelanggan wajib diisi jika customer_id tidak disertakan")
+		}
+
+		existingCust, err := u.customerRepo.FindByPhoneOrNIK(req.PhoneNumber, req.NIK)
+		if err != nil {
+			return "", "", err
+		}
+
+		if existingCust != nil {
+			customerID = existingCust.ID
+			// Update informasi jika ada pembaruan data
+			if req.Fullname != "" && req.Fullname != existingCust.Fullname {
+				existingCust.Fullname = req.Fullname
+			}
+			if req.Address != "" && req.Address != existingCust.Address {
+				existingCust.Address = req.Address
+			}
+			if req.Email != "" && req.Email != existingCust.Email {
+				existingCust.Email = req.Email
+			}
+			_ = u.customerRepo.Update(existingCust)
+		} else {
+			if req.Fullname == "" {
+				return "", "", errors.New("nama lengkap pelanggan wajib diisi untuk pendaftaran pelanggan baru")
+			}
+			newCust := &custEntity.Customer{
+				ID:          uuid.New().String(),
+				Fullname:    req.Fullname,
+				PhoneNumber: req.PhoneNumber,
+				Address:     req.Address,
+				NIK:         req.NIK,
+				Email:       req.Email,
+				CreatedAt:   time.Now(),
+			}
+			if err := u.customerRepo.Create(newCust); err != nil {
+				return "", "", err
+			}
+			customerID = newCust.ID
+		}
+	}
+
+	// 0.1 Resolve Vehicle (Pakai ID jika ada, atau Cari / Buat otomatis dari data kendaraan)
+	vehicleID := req.VehicleID
+	if vehicleID == "" {
+		if req.PlateNumber == "" {
+			return "", "", errors.New("plat nomor kendaraan wajib diisi jika vehicle_id tidak disertakan")
+		}
+
+		existingVehicle, err := u.vehicleRepo.FindByPlateNumber(req.PlateNumber)
+		if err != nil {
+			return "", "", err
+		}
+
+		if existingVehicle != nil {
+			vehicleID = existingVehicle.ID
+			// Update relasi pemilik jika kendaraan ini sekarang dipesan atas nama customer ini
+			if existingVehicle.CustomerID != customerID {
+				existingVehicle.CustomerID = customerID
+				_ = u.vehicleRepo.Update(existingVehicle)
+			}
+		} else {
+			if req.ModelID == "" {
+				return "", "", errors.New("model kendaraan wajib dipilih untuk mendaftarkan kendaraan baru")
+			}
+			year := req.Year
+			if year == 0 {
+				year = time.Now().Year()
+			}
+			newVehicle := &vehEntity.Vehicle{
+				ID:          uuid.New().String(),
+				CustomerID:  customerID,
+				ModelID:     req.ModelID,
+				PlateNumber: req.PlateNumber,
+				Year:        year,
+			}
+			if err := u.vehicleRepo.Create(newVehicle); err != nil {
+				return "", "", err
+			}
+			vehicleID = newVehicle.ID
+		}
+	}
 
 	// Default fees
 	var serviceFee float64 = 0
 	var deliveryFee float64 = 0
 	var expressFee float64 = 0
-	var adminFee float64 = 0 // Default admin fee, updated to 10000 as requested
+	var adminFee float64 = 0
 	var physicalCheckFee float64 = 0
+	var serviceName string
 
 	// 1. Get Service Base Price
 	srv, err := u.serviceRepo.FindByID(req.ServiceID)
-	if err == nil && srv != nil {
-		serviceFee = srv.ServiceFee
+	if err != nil {
+		return "", "", err
+	}
+	if srv == nil {
+		return "", "", errors.New("layanan tidak ditemukan")
+	}
 
-		// If service has its own express fee defined, use it as fallback
-		if req.ServiceLevel == "EXPRESS" && srv.ExpressFee > 0 {
-			expressFee = srv.ExpressFee
-		} else if req.ServiceLevel == "EXPRESS" {
-			expressFee = 50000 // default fallback
-		}
+	serviceName = srv.ServiceName
+	serviceFee = srv.ServiceFee
 
-		// Use AdminFee from Service DB if it is set (> 0)
-		if srv.AdminFee > 0 {
-			adminFee = srv.AdminFee
-		}
+	// If service has its own express fee defined, use it as fallback
+	if req.ServiceLevel == "EXPRESS" && srv.ExpressFee > 0 {
+		expressFee = srv.ExpressFee
+	} else if req.ServiceLevel == "EXPRESS" {
+		expressFee = 50000 // default fallback
+	}
 
-		// Use PhysicalCheckFee from Service DB if it is set (> 0)
-		if srv.PhysicalCheckFee > 0 {
-			physicalCheckFee = srv.PhysicalCheckFee
-		} else {
-			// Fallback: Calculate Physical Check Fee (Rp 30.000 for Mutasi, Balik Nama, 5-Year renewal, or if explicitly requested)
-			serviceNameLower := strings.ToLower(srv.ServiceName)
-			categoryLower := strings.ToLower(srv.Category)
-			if categoryLower == "mutasi kendaraan" || categoryLower == "balik nama" ||
-				strings.Contains(serviceNameLower, "5 tahunan") || strings.Contains(serviceNameLower, "ganti plat") ||
-				req.IsNameTransferRequired {
-				physicalCheckFee = 30000
-			}
-		}
+	// Use AdminFee from Service DB if it is set (> 0)
+	if srv.AdminFee > 0 {
+		adminFee = srv.AdminFee
+	}
+
+	// Use PhysicalCheckFee from Service DB if it is set (> 0)
+	if srv.PhysicalCheckFee > 0 {
+		physicalCheckFee = srv.PhysicalCheckFee
 	} else {
-		// Fallback check if service is not found in DB
-		if req.IsNameTransferRequired {
+		// Fallback: Calculate Physical Check Fee (Rp 30.000 for Mutasi, Balik Nama, 5-Year renewal, or if explicitly requested)
+		serviceNameLower := strings.ToLower(srv.ServiceName)
+		categoryLower := strings.ToLower(srv.Category)
+		if categoryLower == "mutasi kendaraan" || categoryLower == "balik nama" ||
+			strings.Contains(serviceNameLower, "5 tahunan") || strings.Contains(serviceNameLower, "ganti plat") ||
+			req.IsNameTransferRequired {
 			physicalCheckFee = 30000
 		}
 	}
 
-	// 2. Calculate Delivery Fee (Di-set 0 karena ongkir kurir eksternal dibayar pelanggan di tempat)
-	if req.PickupMethod == "OJOL" || req.PickupMethod == "KURIR" || req.PickupMethod == "GOSEND" {
+	// 2. Calculate Delivery Fee (Kalkulasi Otomatis via Biteship & Skenario Pengiriman)
+	pickupUpper := strings.ToUpper(req.PickupMethod)
+	if pickupUpper == "WALK_IN" || pickupUpper == "DATANG_SENDIRI" {
 		deliveryFee = 0
+	} else if req.CourierName != "" && req.CourierService != "" {
+		destPostalCode := req.PostalCode
+		if destPostalCode == "" {
+			destPostalCode = req.DestinationPostalCode
+		}
+		if destPostalCode == "" {
+			// Otomatis cari 5 digit kodepos di string alamat jika tidak dikirim spesifik
+			fullAddress := req.Address
+			if req.PickupAddress != nil && *req.PickupAddress != "" {
+				fullAddress = *req.PickupAddress
+			}
+			re := regexp.MustCompile(`\b\d{5}\b`)
+			destPostalCode = re.FindString(fullAddress)
+		}
+
+		if destPostalCode != "" && u.biteshipUC != nil {
+			calculatedFee, err := u.biteshipUC.CalculateShippingFee(req.CourierName, req.CourierService, destPostalCode, req.PickupMethod)
+			if err == nil && calculatedFee > 0 {
+				deliveryFee = calculatedFee
+			}
+		}
+
+		// Fallback jika API Biteship gagal atau kodepos tidak terdeteksi
+		if deliveryFee == 0 && req.DeliveryFee > 0 {
+			deliveryFee = req.DeliveryFee
+		}
+	} else if req.DeliveryFee > 0 {
+		deliveryFee = req.DeliveryFee
 	}
 
 	// 3. Calculate Express Fee (handled above)
@@ -200,16 +343,30 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 
 	totalCost := serviceFee + adminFee + deliveryFee + expressFee + physicalCheckFee
 
+	var courierName *string
+	if req.CourierName != "" {
+		courierName = &req.CourierName
+	}
+	var courierService *string
+	if req.CourierService != "" {
+		courierService = &req.CourierService
+	}
+
+	pickupAddress := req.PickupAddress
+	if (pickupAddress == nil || *pickupAddress == "") && req.Address != "" {
+		pickupAddress = &req.Address
+	}
+
 	order := &entity.Order{
 		ID:         newID,
-		CustomerID: req.CustomerID,
-		VehicleID:  req.VehicleID,
+		CustomerID: customerID,
+		VehicleID:  vehicleID,
 		ServiceID:  req.ServiceID,
 
 		PickupMethod:           req.PickupMethod,
 		ReturnMethod:           req.ReturnMethod,
 		CustomerTrackingNumber: req.CustomerTrackingNumber,
-		PickupAddress:          req.PickupAddress,
+		PickupAddress:          pickupAddress,
 
 		TaxAmount:        0, // Customer doesn't know the exact tax yet
 		ServiceFee:       serviceFee,
@@ -218,6 +375,10 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 		DeliveryFee:      deliveryFee,
 		ExpressFee:       expressFee,
 		TotalCost:        totalCost,
+
+		CourierName:    courierName,
+		CourierService: courierService,
+		ShippingCost:   deliveryFee,
 
 		ServiceLevel:           req.ServiceLevel,
 		IsNameTransferRequired: req.IsNameTransferRequired,
@@ -233,7 +394,7 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 
 	err = u.orderRepo.Create(order)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Buat log aktivitas pertama (Pesanan Dibuat)
@@ -249,7 +410,7 @@ func (u *orderUsecase) CreateOrderCustomer(req dto.CreateOrderCustomerRequest) (
 	}
 	_ = u.orderLogRepo.Create(log)
 
-	return newID, nil
+	return newID, serviceName, nil
 }
 
 func (u *orderUsecase) GetAllOrders(page int, limit int) ([]dto.OrderResponse, error) {
@@ -376,7 +537,7 @@ func (u *orderUsecase) CreateOrderKTL(ctx context.Context, req dto.CreateOrderKT
 			Phone: req.PhoneNumber,
 		},
 	}
-	
+
 	snapResp, snapErr := u.snapClient.CreateTransaction(snapReq)
 	var snapToken string
 	if snapErr != nil {
@@ -465,7 +626,7 @@ func (u *orderUsecase) UpdateOrderKTLStatus(id string, req dto.UpdateOrderStatus
 		ID:        uuid.New().String(),
 		OrderID:   id,
 		AdminID:   adminIDPtr,
-		OldStatus: "", 
+		OldStatus: "",
 		NewStatus: req.Status,
 		Notes:     req.Notes,
 		CreatedAt: time.Now(),

@@ -9,6 +9,7 @@ type CreateServiceRequest struct {
 	ExpressFee       float64 `json:"express_fee" validate:"gte=0"`
 	AdminFee         float64 `json:"admin_fee" validate:"gte=0"`
 	PhysicalCheckFee float64 `json:"physical_check_fee" validate:"gte=0"`
+	SWDKLLJFee       float64 `json:"swdkllj_fee" validate:"gte=0"`
 	Description      string  `json:"description"`
 }
 
@@ -19,6 +20,7 @@ type UpdateServiceRequest struct {
 	ExpressFee       float64 `json:"express_fee" validate:"omitempty,gte=0"`
 	AdminFee         float64 `json:"admin_fee" validate:"omitempty,gte=0"`
 	PhysicalCheckFee float64 `json:"physical_check_fee" validate:"omitempty,gte=0"`
+	SWDKLLJFee       float64 `json:"swdkllj_fee" validate:"omitempty,gte=0"`
 	Description      string  `json:"description"`
 }
 
@@ -30,6 +32,7 @@ type ServiceResponse struct {
 	ExpressFee       float64   `json:"express_fee"`
 	AdminFee         float64   `json:"admin_fee"`
 	PhysicalCheckFee float64   `json:"physical_check_fee"`
+	SWDKLLJFee       float64   `json:"swdkllj_fee"`
 	Description      string    `json:"description"`
 	CreatedAt        time.Time `json:"created_at"`
 }

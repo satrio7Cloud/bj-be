@@ -11,6 +11,8 @@ definitions:
     properties:
       address:
         type: string
+      email:
+        type: string
       fullname:
         type: string
       nik:
@@ -18,6 +20,7 @@ definitions:
       phone_number:
         type: string
     required:
+    - email
     - fullname
     - phone_number
     type: object
@@ -37,7 +40,7 @@ definitions:
     - model_name
     - vehicle_type
     type: object
-  dto.CreateOrderRequest:
+  dto.CreateOrderAdminRequest:
     properties:
       admin_fee:
         type: number
@@ -62,6 +65,10 @@ definitions:
         type: string
       return_method:
         type: string
+      samsat_destination:
+        type: string
+      samsat_origin:
+        type: string
       service_fee:
         type: number
       service_id:
@@ -79,17 +86,122 @@ definitions:
     - service_id
     - vehicle_id
     type: object
+  dto.CreateOrderCustomerRequest:
+    properties:
+      address:
+        type: string
+      courier_name:
+        type: string
+      courier_service:
+        type: string
+      customer_id:
+        description: Customer Details (Bisa kirim ID atau data langsung)
+        type: string
+      customer_tracking_number:
+        type: string
+      delivery_fee:
+        type: number
+      email:
+        type: string
+      fullname:
+        type: string
+      is_name_transfer_required:
+        type: boolean
+      model_id:
+        type: string
+      nik:
+        type: string
+      notes:
+        type: string
+      phone_number:
+        type: string
+      pickup_address:
+        type: string
+      pickup_method:
+        type: string
+      plate_number:
+        type: string
+      return_method:
+        type: string
+      samsat_destination:
+        type: string
+      samsat_origin:
+        type: string
+      service_id:
+        description: Service & Logistics
+        type: string
+      service_level:
+        type: string
+      vehicle_id:
+        description: Vehicle Details (Bisa kirim ID atau data langsung)
+        type: string
+      year:
+        type: integer
+    required:
+    - service_id
+    type: object
+  dto.CreateOrderRequest:
+    properties:
+      courier_company:
+        type: string
+      courier_type:
+        type: string
+      delivery_date:
+        type: string
+      delivery_time:
+        type: string
+      delivery_type:
+        type: string
+      destination_address:
+        type: string
+      destination_contact_name:
+        type: string
+      destination_contact_phone:
+        type: string
+      destination_postal_code:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/dto.Item'
+        type: array
+      origin_address:
+        type: string
+      origin_contact_name:
+        type: string
+      origin_contact_phone:
+        type: string
+      origin_postal_code:
+        type: string
+      shipper_contact_email:
+        type: string
+      shipper_contact_name:
+        type: string
+      shipper_contact_phone:
+        type: string
+    type: object
   dto.CreateServiceRequest:
     properties:
+      admin_fee:
+        minimum: 0
+        type: number
       category:
         type: string
       description:
         type: string
+      express_fee:
+        minimum: 0
+        type: number
+      physical_check_fee:
+        minimum: 0
+        type: number
       service_fee:
         minimum: 0
         type: number
       service_name:
         type: string
+      swdkllj_fee:
+        minimum: 0
+        type: number
     required:
     - category
     - service_name
@@ -124,7 +236,6 @@ definitions:
       customer_email:
         type: string
       customer_name:
-        description: Detail Pelanggan
         type: string
       customer_phone:
         type: string
@@ -148,20 +259,45 @@ definitions:
         type: string
       payment_status:
         type: string
+      payment_token:
+        type: string
+      payment_url:
+        type: string
       physical_check_fee:
         type: number
+      qris_amount:
+        type: number
+      qris_payload:
+        type: string
       service_fee:
         type: number
       service_name:
         type: string
       tax_amount:
-        description: Rincian Biaya (diambil dari Order)
         type: number
       total_cost:
         type: number
       vehicle_plate:
-        description: Detail Kendaraan & Layanan
         type: string
+    type: object
+  dto.Item:
+    properties:
+      description:
+        type: string
+      height:
+        type: integer
+      length:
+        type: integer
+      name:
+        type: string
+      quantity:
+        type: integer
+      value:
+        type: integer
+      weight:
+        type: integer
+      width:
+        type: integer
     type: object
   dto.LoginRequest:
     properties:
@@ -179,6 +315,19 @@ definitions:
         type: string
     required:
     - payment_method
+    type: object
+  dto.RatesRequest:
+    properties:
+      couriers:
+        type: string
+      destination_postal_code:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/dto.Item'
+        type: array
+      origin_postal_code:
+        type: string
     type: object
   dto.RegisterRequest:
     properties:
@@ -212,6 +361,30 @@ definitions:
         type: string
     required:
     - status
+    type: object
+  dto.UpdateServiceRequest:
+    properties:
+      admin_fee:
+        minimum: 0
+        type: number
+      category:
+        type: string
+      description:
+        type: string
+      express_fee:
+        minimum: 0
+        type: number
+      physical_check_fee:
+        minimum: 0
+        type: number
+      service_fee:
+        minimum: 0
+        type: number
+      service_name:
+        type: string
+      swdkllj_fee:
+        minimum: 0
+        type: number
     type: object
   dto.VerifyDocumentRequest:
     properties:
@@ -256,6 +429,20 @@ paths:
             additionalProperties: true
             type: object
       summary: Admin Login
+      tags:
+      - admins
+  /api/v1/admins/logout:
+    post:
+      description: Logout admin (invalidate token on client side)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Admin Logout
       tags:
       - admins
   /api/v1/admins/register:
@@ -414,9 +601,6 @@ paths:
       - dashboard
   /api/v1/dashboard/chart:
     get:
-      description: Retrieve data for rendering dashboard charts
-      produces:
-      - application/json
       responses:
         "200":
           description: OK
@@ -428,9 +612,6 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Get Chart Data
-      tags:
-      - dashboard
   /api/v1/dashboard/orders:
     get:
       description: Retrieve a list of recent orders for the dashboard
@@ -469,48 +650,6 @@ paths:
       summary: Get Dashboard Summary
       tags:
       - dashboard
-  /api/v1/documents:
-    post:
-      consumes:
-      - multipart/form-data
-      description: Upload a new document for an order
-      parameters:
-      - description: Order ID
-        in: formData
-        name: order_id
-        required: true
-        type: string
-      - description: Document Type (e.g. KTP, STNK)
-        in: formData
-        name: document_type
-        required: true
-        type: string
-      - description: File to upload (Max 5MB, JPG/PNG/PDF)
-        in: formData
-        name: document_file
-        required: true
-        type: file
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Upload Document
-      tags:
-      - documents
   /api/v1/documents/{id}:
     delete:
       description: Delete a document and its file from storage
@@ -599,6 +738,90 @@ paths:
       summary: Verify Document
       tags:
       - documents
+  /api/v1/documents/admin:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new document for an order from admin dashboard
+      parameters:
+      - description: Order ID
+        in: formData
+        name: order_id
+        required: true
+        type: string
+      - description: Document Type (e.g. KTP, STNK)
+        in: formData
+        name: document_type
+        required: true
+        type: string
+      - description: File to upload (Max 5MB, JPG/PNG/PDF)
+        in: formData
+        name: document_file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload Document (Admin)
+      tags:
+      - documents
+  /api/v1/documents/customer:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload a new document for an order from public web
+      parameters:
+      - description: Order ID
+        in: formData
+        name: order_id
+        required: true
+        type: string
+      - description: Document Type (e.g. KTP, STNK)
+        in: formData
+        name: document_type
+        required: true
+        type: string
+      - description: File to upload (Max 5MB, JPG/PNG/PDF)
+        in: formData
+        name: document_file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Upload Document (Customer)
+      tags:
+      - documents
   /api/v1/documents/order/{orderId}:
     get:
       description: Retrieve a list of documents attached to a specific order
@@ -625,6 +848,33 @@ paths:
       tags:
       - documents
   /api/v1/invoices:
+    get:
+      description: Retrieve a paginated list of all invoices
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Invoices
+      tags:
+      - invoices
     post:
       consumes:
       - application/json
@@ -693,6 +943,52 @@ paths:
             additionalProperties: true
             type: object
       summary: Pay Invoice
+      tags:
+      - invoices
+  /api/v1/invoices/list:
+    get:
+      description: Retrieve a paginated list of all invoices
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Invoices
+      tags:
+      - invoices
+  /api/v1/invoices/midtrans-callback:
+    post:
+      consumes:
+      - application/json
+      description: Callback URL for Midtrans to notify payment status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Midtrans Webhook
       tags:
       - invoices
   /api/v1/invoices/order/{orderId}:
@@ -770,6 +1066,50 @@ paths:
       summary: Create New Model
       tags:
       - models
+  /api/v1/notifications/{id}/read:
+    patch:
+      description: Mark a notification as read
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Mark Notification as Read
+      tags:
+      - notification
+  /api/v1/notifications/unread:
+    get:
+      description: Retrieve a list of unread notifications
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Unread Notifications
+      tags:
+      - notification
   /api/v1/orders:
     get:
       description: Retrieve a paginated list of all orders
@@ -798,38 +1138,6 @@ paths:
             additionalProperties: true
             type: object
       summary: Get All Orders
-      tags:
-      - orders
-    post:
-      consumes:
-      - application/json
-      description: Create a new order for vehicle services
-      parameters:
-      - description: Order Data
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/dto.CreateOrderRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Create New Order
       tags:
       - orders
   /api/v1/orders/{id}:
@@ -895,6 +1203,229 @@ paths:
       summary: Update Order Status
       tags:
       - orders
+  /api/v1/orders/admin:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order with full control over fees from the admin dashboard
+      parameters:
+      - description: Order Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderAdminRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Order (Admin)
+      tags:
+      - orders
+  /api/v1/orders/customer:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order from public web, fees are auto-calculated
+      parameters:
+      - description: Order Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderCustomerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create New Order (Customer)
+      tags:
+      - orders
+  /api/v1/orders/ktl:
+    get:
+      consumes:
+      - application/json
+      description: Get all KTL orders with pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get All Order KTLs
+      tags:
+      - orders
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a new KTL print request with file uploads in one step
+      parameters:
+      - description: Customer Name
+        in: formData
+        name: customer_name
+        required: true
+        type: string
+      - description: Phone Number
+        in: formData
+        name: phone_number
+        required: true
+        type: string
+      - description: Vehicle Type
+        in: formData
+        name: vehicle_type
+        required: true
+        type: string
+      - description: Region
+        in: formData
+        name: region
+        required: true
+        type: string
+      - description: Fee
+        in: formData
+        name: fee
+        required: true
+        type: number
+      - description: Fee
+        in: formData
+        name: fee
+        required: true
+        type: number
+      - description: Foto KTL Lama
+        in: formData
+        name: bukti_ktl
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create Order KTL
+      tags:
+      - orders
+  /api/v1/orders/ktl/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get specific KTL order details
+      parameters:
+      - description: Order KTL ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Order KTL by ID
+      tags:
+      - orders
+  /api/v1/orders/ktl/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the processing status of a KTL order
+      parameters:
+      - description: Order KTL ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status Update Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateOrderStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update Order KTL Status
+      tags:
+      - orders
   /api/v1/services:
     get:
       description: Retrieve a list of all master services
@@ -946,6 +1477,165 @@ paths:
       summary: Create New Service
       tags:
       - services
+  /api/v1/services/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Update an existing master service catalog item
+      parameters:
+      - description: Service ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Service Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateServiceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update Service
+      tags:
+      - services
+  /api/v1/shipping/couriers:
+    get:
+      description: Get a list of available couriers and their services
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get available couriers
+      tags:
+      - shipping
+  /api/v1/shipping/order:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order via Biteship and get a tracking ID
+      parameters:
+      - description: Create Order Request Payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a new shipping order
+      tags:
+      - shipping
+  /api/v1/shipping/rates:
+    post:
+      consumes:
+      - application/json
+      description: Check shipping rates for available couriers based on origin and
+        destination
+      parameters:
+      - description: Rates Request Payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RatesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Check shipping rates
+      tags:
+      - shipping
+  /api/v1/shipping/tracking/{tracking_id}:
+    get:
+      description: Get tracking history and status for a specific tracking ID
+      parameters:
+      - description: Tracking ID
+        in: path
+        name: tracking_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get shipping tracking
+      tags:
+      - shipping
   /api/v1/vehicles:
     get:
       description: Retrieve a list of all customer vehicles

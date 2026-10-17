@@ -32,15 +32,34 @@ type CreateOrderAdminRequest struct {
 }
 
 type CreateOrderCustomerRequest struct {
-	CustomerID string `json:"customer_id" validate:"required,uuid"`
-	VehicleID  string `json:"vehicle_id" validate:"required,uuid"`
-	ServiceID  string `json:"service_id" validate:"required,uuid"`
+	// Customer Details (Bisa kirim ID atau data langsung)
+	CustomerID  string `json:"customer_id,omitempty"`
+	Fullname    string `json:"fullname,omitempty"`
+	PhoneNumber string `json:"phone_number,omitempty"`
+	NIK         string `json:"nik,omitempty"`
+	Email       string `json:"email,omitempty"`
+	Address     string `json:"address,omitempty"`
+
+	// Vehicle Details (Bisa kirim ID atau data langsung)
+	VehicleID   string `json:"vehicle_id,omitempty"`
+	PlateNumber string `json:"plate_number,omitempty"`
+	ModelID     string `json:"model_id,omitempty"`
+	Year        int    `json:"year,omitempty"`
+
+	// Service & Logistics
+	ServiceID   string `json:"service_id" validate:"required,uuid"`
 	
 	PickupMethod           string  `json:"pickup_method"`
 	ReturnMethod           string  `json:"return_method"`
 	CustomerTrackingNumber *string `json:"customer_tracking_number,omitempty"`
 	PickupAddress          *string `json:"pickup_address,omitempty"`
 	
+	DeliveryFee            float64 `json:"delivery_fee"`
+	CourierName            string  `json:"courier_name,omitempty"`
+	CourierService         string  `json:"courier_service,omitempty"`
+	PostalCode             string  `json:"postal_code,omitempty"`
+	DestinationPostalCode  string  `json:"destination_postal_code,omitempty"`
+
 	ServiceLevel           string  `json:"service_level"`
 	IsNameTransferRequired bool    `json:"is_name_transfer_required"`
 	
@@ -92,5 +111,10 @@ type OrderResponse struct {
 	Notes                  string    `json:"notes"`
 	OrderDate              time.Time `json:"order_date"`
 	
+	TrackingNumber         *string   `json:"tracking_number,omitempty"`
+	CourierName            *string   `json:"courier_name,omitempty"`
+	CourierService         *string   `json:"courier_service,omitempty"`
+	ShippingCost           float64   `json:"shipping_cost"`
+
 	History []OrderStatusHistoryResponse `json:"history,omitempty"`
 }

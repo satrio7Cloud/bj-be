@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bj/internal/config"
+	"bj/internal/constants"
 
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
@@ -29,7 +30,7 @@ func NewMinioStorage(client *minio.Client, cfg *config.Config) StorageService {
 func (s *minioStorage) UploadFile(ctx context.Context, file *multipart.FileHeader, folderName string) (string, error) {
 	src, err := file.Open()
 	if err != nil {
-		return "", fmt.Errorf("gagal membuka file: %w", err)
+		return "", fmt.Errorf(constants.MsgFileOpenFailed, err)
 	}
 	defer src.Close()
 
@@ -47,7 +48,7 @@ func (s *minioStorage) UploadFile(ctx context.Context, file *multipart.FileHeade
 		ContentType: contentType,
 	})
 	if err != nil {
-		return "", fmt.Errorf("gagal mengunggah file ke MinIO: %w", err)
+		return "", fmt.Errorf(constants.MsgMinioUploadFailed, err)
 	}
 
 	return objectName, nil
@@ -57,7 +58,7 @@ func (s *minioStorage) GetPresignedURL(ctx context.Context, objectName string, e
 	reqParams := make(url.Values)
 	presignedURL, err := s.client.PresignedGetObject(ctx, s.bucketName, objectName, expires, reqParams)
 	if err != nil {
-		return "", fmt.Errorf("gagal membuat URL file: %w", err)
+		return "", fmt.Errorf(constants.MsgMinioURLFailed, err)
 	}
 	return presignedURL.String(), nil
 }
@@ -65,7 +66,7 @@ func (s *minioStorage) GetPresignedURL(ctx context.Context, objectName string, e
 func (s *minioStorage) DeleteFile(ctx context.Context, objectName string) error {
 	err := s.client.RemoveObject(ctx, s.bucketName, objectName, minio.RemoveObjectOptions{})
 	if err != nil {
-		return fmt.Errorf("gagal menghapus file dari MinIO: %w", err)
+		return fmt.Errorf(constants.MsgMinioDeleteFailed, err)
 	}
 	return nil
 }

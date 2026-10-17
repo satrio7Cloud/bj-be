@@ -15,10 +15,9 @@ func NewRedisClient(cfg *config.Config) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: cfg.Redis.Password,
-		DB:       0, // Use default DB
+		DB:       0,
 	})
 
-	// Test connection
 	ctx := context.Background()
 	_, err := client.Ping(ctx).Result()
 	if err != nil {

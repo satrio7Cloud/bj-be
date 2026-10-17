@@ -23,20 +23,20 @@ func NewServiceRepository(db *gorm.DB) ServiceRepository {
 }
 
 func (r *serviceRepository) Create(service *entity.Service) error {
-	query := `INSERT INTO dbo.MasterServices (ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, Description, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	return r.db.Exec(query, service.ID, service.ServiceName, service.Category, service.ServiceFee, service.ExpressFee, service.AdminFee, service.PhysicalCheckFee, service.Description, service.CreatedAt).Error
+	query := `INSERT INTO dbo.MasterServices (ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, SWDKLLJ_Fee, Description, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	return r.db.Exec(query, service.ID, service.ServiceName, service.Category, service.ServiceFee, service.ExpressFee, service.AdminFee, service.PhysicalCheckFee, service.SWDKLLJFee, service.Description, service.CreatedAt).Error
 }
 
 func (r *serviceRepository) FindAll() ([]entity.Service, error) {
 	var services []entity.Service
-	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, Description, CreatedAt FROM dbo.MasterServices ORDER BY CreatedAt DESC`
+	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, SWDKLLJ_Fee, Description, CreatedAt FROM dbo.MasterServices ORDER BY CreatedAt DESC`
 	err := r.db.Raw(query).Scan(&services).Error
 	return services, err
 }
 
 func (r *serviceRepository) FindByID(id string) (*entity.Service, error) {
 	var service entity.Service
-	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, Description, CreatedAt FROM dbo.MasterServices WHERE ID = ?`
+	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, ServiceName, Category, ServiceFee, ExpressFee, AdminFee, PhysicalCheckFee, SWDKLLJ_Fee, Description, CreatedAt FROM dbo.MasterServices WHERE ID = ?`
 	res := r.db.Raw(query, id).Scan(&service)
 
 	if res.Error != nil {
@@ -50,8 +50,8 @@ func (r *serviceRepository) FindByID(id string) (*entity.Service, error) {
 }
 
 func (r *serviceRepository) Update(service *entity.Service) error {
-	query := `UPDATE dbo.MasterServices SET ServiceName = ?, Category = ?, ServiceFee = ?, ExpressFee = ?, AdminFee = ?, PhysicalCheckFee = ?, Description = ? WHERE ID = ?`
-	return r.db.Exec(query, service.ServiceName, service.Category, service.ServiceFee, service.ExpressFee, service.AdminFee, service.PhysicalCheckFee, service.Description, service.ID).Error
+	query := `UPDATE dbo.MasterServices SET ServiceName = ?, Category = ?, ServiceFee = ?, ExpressFee = ?, AdminFee = ?, PhysicalCheckFee = ?, SWDKLLJ_Fee = ?, Description = ? WHERE ID = ?`
+	return r.db.Exec(query, service.ServiceName, service.Category, service.ServiceFee, service.ExpressFee, service.AdminFee, service.PhysicalCheckFee, service.SWDKLLJFee, service.Description, service.ID).Error
 }
 
 func (r *serviceRepository) Delete(id string) error {

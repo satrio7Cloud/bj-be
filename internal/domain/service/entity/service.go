@@ -10,6 +10,7 @@ type Service struct {
 	ExpressFee       float64   `gorm:"type:decimal(18,2);not null;default:0"`
 	AdminFee         float64   `gorm:"type:decimal(18,2);not null;default:0"`
 	PhysicalCheckFee float64   `gorm:"type:decimal(18,2);not null;default:0"`
+	SWDKLLJFee       float64   `gorm:"column:SWDKLLJ_Fee;type:decimal(18,2);not null;default:0"`
 	Description      string    `gorm:"type:varchar(255)"`
 	CreatedAt        time.Time `gorm:"autoCreateTime"`
 }

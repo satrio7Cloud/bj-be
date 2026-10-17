@@ -8,7 +8,7 @@ import (
 )
 
 func RegisterModelRoutes(router fiber.Router, h *handler.ModelHandler) {
-	group := router.Group("/models", middleware.Protected())
-	group.Post("/", h.CreateModel)
+	group := router.Group("/models")
+	group.Post("/", middleware.Protected(), h.CreateModel)
 	group.Get("/", h.GetModels)
 }

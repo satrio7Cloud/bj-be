@@ -64,6 +64,27 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admins/logout": {
+            "post": {
+                "description": "Logout admin (invalidate token on client side)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admins"
+                ],
+                "summary": "Admin Logout",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admins/register": {
             "post": {
                 "description": "Create a new admin account",
@@ -293,14 +314,6 @@ const docTemplate = `{
         },
         "/api/v1/dashboard/chart": {
             "get": {
-                "description": "Retrieve data for rendering dashboard charts",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "dashboard"
-                ],
-                "summary": "Get Chart Data",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -375,9 +388,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/documents": {
+        "/api/v1/documents/admin": {
             "post": {
-                "description": "Upload a new document for an order",
+                "description": "Upload a new document for an order from admin dashboard",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -387,7 +400,68 @@ const docTemplate = `{
                 "tags": [
                     "documents"
                 ],
-                "summary": "Upload Document",
+                "summary": "Upload Document (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "order_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Document Type (e.g. KTP, STNK)",
+                        "name": "document_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File to upload (Max 5MB, JPG/PNG/PDF)",
+                        "name": "document_file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/documents/customer": {
+            "post": {
+                "description": "Upload a new document for an order from public web",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "Upload Document (Customer)",
                 "parameters": [
                     {
                         "type": "string",
@@ -604,6 +678,46 @@ const docTemplate = `{
             }
         },
         "/api/v1/invoices": {
+            "get": {
+                "description": "Retrieve a paginated list of all invoices",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "invoices"
+                ],
+                "summary": "Get All Invoices",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 10)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "Generates a new invoice or returns the existing one for a given order",
                 "consumes": [
@@ -643,6 +757,74 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/invoices/list": {
+            "get": {
+                "description": "Retrieve a paginated list of all invoices",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "invoices"
+                ],
+                "summary": "Get All Invoices",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Number of items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/invoices/midtrans-callback": {
+            "post": {
+                "description": "Callback URL for Midtrans to notify payment status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "invoices"
+                ],
+                "summary": "Midtrans Webhook",
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -818,6 +1000,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/notifications/unread": {
+            "get": {
+                "description": "Retrieve a list of unread notifications",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification"
+                ],
+                "summary": "Get Unread Notifications",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/notifications/{id}/read": {
+            "patch": {
+                "description": "Mark a notification as read",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notification"
+                ],
+                "summary": "Mark Notification as Read",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/orders": {
             "get": {
                 "description": "Retrieve a paginated list of all orders",
@@ -860,9 +1107,11 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/api/v1/orders/admin": {
             "post": {
-                "description": "Create a new order for vehicle services",
+                "description": "Create a new order with full control over fees from the admin dashboard",
                 "consumes": [
                     "application/json"
                 ],
@@ -872,7 +1121,7 @@ const docTemplate = `{
                 "tags": [
                     "orders"
                 ],
-                "summary": "Create New Order",
+                "summary": "Create New Order (Admin)",
                 "parameters": [
                     {
                         "description": "Order Data",
@@ -880,13 +1129,291 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.CreateOrderRequest"
+                            "$ref": "#/definitions/dto.CreateOrderAdminRequest"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orders/customer": {
+            "post": {
+                "description": "Create a new order from public web, fees are auto-calculated",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Create New Order (Customer)",
+                "parameters": [
+                    {
+                        "description": "Order Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateOrderCustomerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orders/ktl": {
+            "get": {
+                "description": "Get all KTL orders with pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get All Order KTLs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new KTL print request with file uploads in one step",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Create Order KTL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Customer Name",
+                        "name": "customer_name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phone Number",
+                        "name": "phone_number",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Vehicle Type",
+                        "name": "vehicle_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Region",
+                        "name": "region",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Fee",
+                        "name": "fee",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "number",
+                        "description": "Fee",
+                        "name": "fee",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Foto KTL Lama",
+                        "name": "bukti_ktl",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orders/ktl/{id}": {
+            "get": {
+                "description": "Get specific KTL order details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get Order KTL by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order KTL ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/orders/ktl/{id}/status": {
+            "patch": {
+                "description": "Update the processing status of a KTL order",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Update Order KTL Status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order KTL ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Status Update Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateOrderStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1077,6 +1604,239 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/services/{id}": {
+            "put": {
+                "description": "Update an existing master service catalog item",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "services"
+                ],
+                "summary": "Update Service",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Service Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateServiceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shipping/couriers": {
+            "get": {
+                "description": "Get a list of available couriers and their services",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "shipping"
+                ],
+                "summary": "Get available couriers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shipping/order": {
+            "post": {
+                "description": "Create a new order via Biteship and get a tracking ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "shipping"
+                ],
+                "summary": "Create a new shipping order",
+                "parameters": [
+                    {
+                        "description": "Create Order Request Payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CreateOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shipping/rates": {
+            "post": {
+                "description": "Check shipping rates for available couriers based on origin and destination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "shipping"
+                ],
+                "summary": "Check shipping rates",
+                "parameters": [
+                    {
+                        "description": "Rates Request Payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/shipping/tracking/{tracking_id}": {
+            "get": {
+                "description": "Get tracking history and status for a specific tracking ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "shipping"
+                ],
+                "summary": "Get shipping tracking",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tracking ID",
+                        "name": "tracking_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/vehicles": {
             "get": {
                 "description": "Retrieve a list of all customer vehicles",
@@ -1168,11 +1928,15 @@ const docTemplate = `{
         "dto.CreateCustomerRequest": {
             "type": "object",
             "required": [
+                "email",
                 "fullname",
                 "phone_number"
             ],
             "properties": {
                 "address": {
+                    "type": "string"
+                },
+                "email": {
                     "type": "string"
                 },
                 "fullname": {
@@ -1209,7 +1973,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.CreateOrderRequest": {
+        "dto.CreateOrderAdminRequest": {
             "type": "object",
             "required": [
                 "customer_id",
@@ -1251,6 +2015,12 @@ const docTemplate = `{
                 "return_method": {
                     "type": "string"
                 },
+                "samsat_destination": {
+                    "type": "string"
+                },
+                "samsat_origin": {
+                    "type": "string"
+                },
                 "service_fee": {
                     "type": "number"
                 },
@@ -1270,6 +2040,145 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.CreateOrderCustomerRequest": {
+            "type": "object",
+            "required": [
+                "service_id"
+            ],
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "courier_name": {
+                    "type": "string"
+                },
+                "courier_service": {
+                    "type": "string"
+                },
+                "customer_id": {
+                    "description": "Customer Details (Bisa kirim ID atau data langsung)",
+                    "type": "string"
+                },
+                "customer_tracking_number": {
+                    "type": "string"
+                },
+                "delivery_fee": {
+                    "type": "number"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "fullname": {
+                    "type": "string"
+                },
+                "is_name_transfer_required": {
+                    "type": "boolean"
+                },
+                "model_id": {
+                    "type": "string"
+                },
+                "nik": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "phone_number": {
+                    "type": "string"
+                },
+                "pickup_address": {
+                    "type": "string"
+                },
+                "pickup_method": {
+                    "type": "string"
+                },
+                "plate_number": {
+                    "type": "string"
+                },
+                "return_method": {
+                    "type": "string"
+                },
+                "samsat_destination": {
+                    "type": "string"
+                },
+                "samsat_origin": {
+                    "type": "string"
+                },
+                "service_id": {
+                    "description": "Service \u0026 Logistics",
+                    "type": "string"
+                },
+                "service_level": {
+                    "type": "string"
+                },
+                "vehicle_id": {
+                    "description": "Vehicle Details (Bisa kirim ID atau data langsung)",
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "dto.CreateOrderRequest": {
+            "type": "object",
+            "properties": {
+                "courier_company": {
+                    "type": "string"
+                },
+                "courier_type": {
+                    "type": "string"
+                },
+                "delivery_date": {
+                    "type": "string"
+                },
+                "delivery_time": {
+                    "type": "string"
+                },
+                "delivery_type": {
+                    "type": "string"
+                },
+                "destination_address": {
+                    "type": "string"
+                },
+                "destination_contact_name": {
+                    "type": "string"
+                },
+                "destination_contact_phone": {
+                    "type": "string"
+                },
+                "destination_postal_code": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.Item"
+                    }
+                },
+                "origin_address": {
+                    "type": "string"
+                },
+                "origin_contact_name": {
+                    "type": "string"
+                },
+                "origin_contact_phone": {
+                    "type": "string"
+                },
+                "origin_postal_code": {
+                    "type": "string"
+                },
+                "shipper_contact_email": {
+                    "type": "string"
+                },
+                "shipper_contact_name": {
+                    "type": "string"
+                },
+                "shipper_contact_phone": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CreateServiceRequest": {
             "type": "object",
             "required": [
@@ -1277,11 +2186,23 @@ const docTemplate = `{
                 "service_name"
             ],
             "properties": {
+                "admin_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
                 "category": {
                     "type": "string"
                 },
                 "description": {
                     "type": "string"
+                },
+                "express_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "physical_check_fee": {
+                    "type": "number",
+                    "minimum": 0
                 },
                 "service_fee": {
                     "type": "number",
@@ -1289,6 +2210,10 @@ const docTemplate = `{
                 },
                 "service_name": {
                     "type": "string"
+                },
+                "swdkllj_fee": {
+                    "type": "number",
+                    "minimum": 0
                 }
             }
         },
@@ -1336,7 +2261,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "customer_name": {
-                    "description": "Detail Pelanggan",
                     "type": "string"
                 },
                 "customer_phone": {
@@ -1372,8 +2296,20 @@ const docTemplate = `{
                 "payment_status": {
                     "type": "string"
                 },
+                "payment_token": {
+                    "type": "string"
+                },
+                "payment_url": {
+                    "type": "string"
+                },
                 "physical_check_fee": {
                     "type": "number"
+                },
+                "qris_amount": {
+                    "type": "number"
+                },
+                "qris_payload": {
+                    "type": "string"
                 },
                 "service_fee": {
                     "type": "number"
@@ -1382,15 +2318,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tax_amount": {
-                    "description": "Rincian Biaya (diambil dari Order)",
                     "type": "number"
                 },
                 "total_cost": {
                     "type": "number"
                 },
                 "vehicle_plate": {
-                    "description": "Detail Kendaraan \u0026 Layanan",
                     "type": "string"
+                }
+            }
+        },
+        "dto.Item": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "length": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "integer"
+                },
+                "weight": {
+                    "type": "integer"
+                },
+                "width": {
+                    "type": "integer"
                 }
             }
         },
@@ -1416,6 +2379,26 @@ const docTemplate = `{
             ],
             "properties": {
                 "payment_method": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.RatesRequest": {
+            "type": "object",
+            "properties": {
+                "couriers": {
+                    "type": "string"
+                },
+                "destination_postal_code": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.Item"
+                    }
+                },
+                "origin_postal_code": {
                     "type": "string"
                 }
             }
@@ -1463,6 +2446,40 @@ const docTemplate = `{
                         "Cancelled",
                         "Rejected"
                     ]
+                }
+            }
+        },
+        "dto.UpdateServiceRequest": {
+            "type": "object",
+            "properties": {
+                "admin_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "express_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "physical_check_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "service_fee": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "service_name": {
+                    "type": "string"
+                },
+                "swdkllj_fee": {
+                    "type": "number",
+                    "minimum": 0
                 }
             }
         },

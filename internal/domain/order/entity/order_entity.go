@@ -10,7 +10,6 @@ type Order struct {
 	ProcessedByID *string `gorm:"type:uniqueidentifier"` // Boleh null jika belum diproses
 	Status        string  `gorm:"type:varchar(50);not null;default:'Pending'"`
 
-	// --- Delivery Options ---
 	PickupMethod           string  `gorm:"type:varchar(50)"`
 	ReturnMethod           string  `gorm:"type:varchar(50)"`
 	CustomerTrackingNumber *string `gorm:"type:varchar(100)"`
@@ -26,7 +25,6 @@ type Order struct {
 	ExpressFee       float64 `gorm:"type:decimal(18,2);not null;default:0"`
 	TotalCost        float64 `gorm:"type:decimal(18,2);not null;default:0"`
 
-	// --- Service Level & Flags ---
 	ServiceLevel           string `gorm:"type:varchar(50);not null;default:'STANDARD'"`
 	IsNameTransferRequired bool   `gorm:"type:bit;not null;default:0"`
 
@@ -36,8 +34,8 @@ type Order struct {
 	Notes     string    `gorm:"type:varchar(max)"`
 	OrderDate time.Time `gorm:"autoCreateTime"`
 
-	TrackingNumber      *string   `gorm:"type:varchar(100)"`
-	CourierName         *string   `gorm:"type:varchar(50)"`
-	CourierService      *string   `gorm:"type:varchar(100)"`
-	ShippingCost        float64   `gorm:"type:decimal(18,2);default:0"`
+	TrackingNumber *string `gorm:"type:varchar(100)"`
+	CourierName    *string `gorm:"type:varchar(50)"`
+	CourierService *string `gorm:"type:varchar(100)"`
+	ShippingCost   float64 `gorm:"type:decimal(18,2);default:0"`
 }

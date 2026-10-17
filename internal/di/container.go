@@ -4,15 +4,16 @@ import (
 	"fmt"
 
 	"bj/internal/config"
+	"bj/internal/constants"
 	"bj/internal/database"
 	"bj/internal/pkg/minio"
 	"bj/internal/pkg/qris"
 	"bj/internal/pkg/redis"
 	"bj/internal/shared/storage"
 
-	redisPkg "github.com/redis/go-redis/v9"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
+	redisPkg "github.com/redis/go-redis/v9"
 
 	adminHandler "bj/internal/domain/user/handler"
 	adminRepository "bj/internal/domain/user/repository"
@@ -142,29 +143,27 @@ type Container struct {
 	PaymentHdl *paymentHandler.PaymentHandler
 }
 
-// NewContainer melakukan inisialisasi semua repository, usecase, dan handler
 func NewContainer(cfg *config.Config) (*Container, error) {
 	if cfg == nil {
 		cfg = config.LoadConfig()
 	}
 
-	// 1. Setup Database
 	db := database.ConnectSQLServer(cfg)
 	if db == nil {
-		return nil, fmt.Errorf("gagal terkoneksi ke database utama")
+		return nil, fmt.Errorf(constants.MsgDbDisconnected)
 	}
 
 	// 1.5 Setup MinIO & Storage Service
 	minioClient, err := minio.NewMinioClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("gagal menginisialisasi MinIO client: %v", err)
+		return nil, fmt.Errorf(constants.MsgMinioInitFailed, err)
 	}
 	storageService := storage.NewMinioStorage(minioClient, cfg)
 
 	// 1.6 Setup Redis
 	redisClient, err := redis.NewRedisClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("gagal menginisialisasi Redis client: %v", err)
+		return nil, fmt.Errorf(constants.MsgRedisInitFailed, err)
 	}
 
 	// 1.7 Setup Qris Generator
@@ -195,10 +194,25 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	modelUC := modelUsecase.NewModelUsecase(modelRepo)
 	modelHdl := modelHandler.NewModelHandler(modelUC)
 
+	vehicleRepo := vehicleRepository.NewVehicleRepository(db)
+	vehicleUC := vehicleUsecase.NewVehicleUsecase(vehicleRepo)
+	vehicleHdl := vehicleHandler.NewVehicleHandler(vehicleUC)
+
+	biteshipSvc := biteshipService.NewBiteshipService(cfg)
+	biteshipUC := biteshipUsecase.NewBiteshipUsecase(
+		biteshipSvc,
+		cfg.Biteship.DefaultCouriers,
+		cfg.Biteship.OriginPostalCode,
+		cfg.Biteship.DefaultItemName,
+		cfg.Biteship.DefaultItemWeight,
+		cfg.Biteship.DefaultItemValue,
+	)
+	biteshipHdl := biteshipHandler.NewBiteshipHandler(biteshipUC)
+
 	orderRepo := orderRepository.NewOrderRepository(db)
 	orderLogRepo := orderlogRepository.NewOrderLogRepository(db)
 	serviceRepo := serviceRepository.NewServiceRepository(db)
-	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo, storageService, snapClient)
+	orderUC := orderUsecase.NewOrderUsecase(orderRepo, orderLogRepo, serviceRepo, customerRepo, vehicleRepo, biteshipUC, storageService, snapClient)
 	orderHdl := orderHandler.NewOrderHandler(orderUC)
 
 	serviceUC := serviceUsecase.NewServiceUsecase(serviceRepo, redisClient)
@@ -207,11 +221,6 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	documentRepo := documentRepository.NewDocumentRepository(db)
 	documentUC := documentUsecase.NewDocumentUsecase(documentRepo, orderRepo, serviceRepo, storageService)
 	documentHdl := documentHandler.NewDocumentHandler(documentUC)
-
-
-	vehicleRepo := vehicleRepository.NewVehicleRepository(db)
-	vehicleUC := vehicleUsecase.NewVehicleUsecase(vehicleRepo)
-	vehicleHdl := vehicleHandler.NewVehicleHandler(vehicleUC)
 
 	dashboardRepo := dashboardRepository.NewDashboardRepository(db)
 	dashboardUC := dashboardUsecase.NewDashboardUsecase(dashboardRepo)
@@ -224,10 +233,6 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	notificationRepo := notificationRepository.NewNotificationRepository(db)
 	notificationUC := notificationUsecase.NewNotificationUsecase(notificationRepo, cfg.NotificationCron)
 	notificationHdl := notificationHandler.NewNotificationHandler(notificationUC)
-
-	biteshipSvc := biteshipService.NewBiteshipService(cfg)
-	biteshipUC := biteshipUsecase.NewBiteshipUsecase(biteshipSvc, cfg.Biteship.DefaultCouriers, cfg.Biteship.OriginPostalCode)
-	biteshipHdl := biteshipHandler.NewBiteshipHandler(biteshipUC)
 
 	paymentUC := paymentUsecase.NewPaymentUsecase(orderUC)
 	paymentHdl := paymentHandler.NewPaymentHandler(paymentUC)

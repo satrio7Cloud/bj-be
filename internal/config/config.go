@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -41,10 +42,13 @@ type MidtransConfig struct {
 }
 
 type BiteshipConfig struct {
-	APIKey           string
-	BaseURL          string
-	DefaultCouriers  string
-	OriginPostalCode string
+	APIKey            string
+	BaseURL           string
+	DefaultCouriers   string
+	OriginPostalCode  string
+	DefaultItemName   string
+	DefaultItemWeight int
+	DefaultItemValue  int
 }
 
 type Config struct {
@@ -107,10 +111,29 @@ func LoadConfig() *Config {
 			Env:        os.Getenv("MIDTRANS_ENV"),
 		},
 		Biteship: BiteshipConfig{
-			APIKey:           os.Getenv("BITESHIP_API_KEY"),
-			BaseURL:          os.Getenv("BITESHIP_BASE_URL"),
-			DefaultCouriers:  os.Getenv("BITESHIP_DEFAULT_COURIERS"),
-			OriginPostalCode: os.Getenv("BITESHIP_ORIGIN_POSTAL_CODE"),
+			APIKey:            os.Getenv("BITESHIP_API_KEY"),
+			BaseURL:           os.Getenv("BITESHIP_BASE_URL"),
+			DefaultCouriers:   os.Getenv("BITESHIP_DEFAULT_COURIERS"),
+			OriginPostalCode:  os.Getenv("BITESHIP_ORIGIN_POSTAL_CODE"),
+			DefaultItemName:   getEnv("BITESHIP_DEFAULT_ITEM_NAME", "Dokumen Layanan Biro Jasa"),
+			DefaultItemWeight: getEnvInt("BITESHIP_DEFAULT_ITEM_WEIGHT", 200),
+			DefaultItemValue:  getEnvInt("BITESHIP_DEFAULT_ITEM_VALUE", 100000),
 		},
 	}
+}
+
+func getEnv(key, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultVal
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	if val := os.Getenv(key); val != "" {
+		if intVal, err := strconv.Atoi(val); err == nil {
+			return intVal
+		}
+	}
+	return defaultVal
 }

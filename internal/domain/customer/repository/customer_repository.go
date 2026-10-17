@@ -9,6 +9,7 @@ type CustomerRepository interface {
 	Create(customer *entity.Customer) error
 	FindAll() ([]entity.Customer, error)
 	FindByID(id string) (*entity.Customer, error)
+	FindByPhoneOrNIK(phone string, nik string) (*entity.Customer, error)
 	Update(customer *entity.Customer) error
 	Delete(id string) error
 }
@@ -45,6 +46,34 @@ func (r *customerRepository) FindByID(id string) (*entity.Customer, error) {
 		return nil, nil
 	}
 	
+	return &customer, nil
+}
+
+func (r *customerRepository) FindByPhoneOrNIK(phone string, nik string) (*entity.Customer, error) {
+	var customer entity.Customer
+	var query string
+	var res *gorm.DB
+
+	if phone != "" && nik != "" {
+		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE PhoneNumber = ? OR NIK = ?`
+		res = r.db.Raw(query, phone, nik).Scan(&customer)
+	} else if phone != "" {
+		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE PhoneNumber = ?`
+		res = r.db.Raw(query, phone).Scan(&customer)
+	} else if nik != "" {
+		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE NIK = ?`
+		res = r.db.Raw(query, nik).Scan(&customer)
+	} else {
+		return nil, nil
+	}
+
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil, nil
+	}
+
 	return &customer, nil
 }
 

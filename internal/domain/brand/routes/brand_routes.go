@@ -7,7 +7,7 @@ import (
 )
 
 func RegisterBrandRoutes(router fiber.Router, h *handler.BrandHandler) {
-	group := router.Group("/brands", middleware.Protected())
-	group.Post("/", h.CreateBrand)
+	group := router.Group("/brands")
+	group.Post("/", middleware.Protected(), h.CreateBrand)
 	group.Get("/", h.GetBrands)
 }

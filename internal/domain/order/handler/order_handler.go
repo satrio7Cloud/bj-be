@@ -5,9 +5,11 @@ import (
 	"bj/internal/domain/order/dto"
 	"bj/internal/domain/order/usecase"
 	"bj/internal/utils"
-
 	"context"
+	"fmt"
 	"strconv"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -94,14 +96,19 @@ func (h *OrderHandler) CreateOrderCustomer(c *fiber.Ctx) error {
 		})
 	}
 
-	newID, err := h.orderUsecase.CreateOrderCustomer(req)
+	newID, serviceName, err := h.orderUsecase.CreateOrderCustomer(req)
 	if err != nil {
 		return utils.HandleError(c, err)
 	}
 
+	message := "Pesanan berhasil dibuat"
+	if strings.TrimSpace(serviceName) != "" {
+		message = fmt.Sprintf("Pesanan %s berhasil dibuat", strings.TrimSpace(serviceName))
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"status":  constants.StatusSuccess,
-		"message": "Pesanan perpanjangan STNK berhasil dibuat",
+		"message": message,
 		"data": fiber.Map{
 			"id": newID,
 		},
@@ -225,7 +232,7 @@ func (h *OrderHandler) CreateOrderKTL(c *fiber.Ctx) error {
 	req.PhoneNumber = c.FormValue("phone_number")
 	req.VehicleType = c.FormValue("vehicle_type")
 	req.Region = c.FormValue("region")
-	
+
 	feeStr := c.FormValue("fee")
 	if feeStr != "" {
 		feeFloat, err := strconv.ParseFloat(feeStr, 64)

@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-
+	"os"
 	"strings"
 
 	"bj/internal/config"
@@ -66,19 +66,25 @@ func main() {
 	// Setup API Routes terpusat (seperti di CashRecon)
 	appRoutes.RegisterRoutes(app, container)
 
-	// Route untuk melayani file swagger.yaml dari folder docs
-	app.Get("/docs/swagger.yaml", func(c *fiber.Ctx) error {
+	// Route untuk melayani file swagger.yaml
+	app.Get("/swagger.yaml", func(c *fiber.Ctx) error {
 		c.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
 		c.Set("Pragma", "no-cache")
 		c.Set("Expires", "0")
-		return c.SendFile("./docs/swagger.yaml")
+
+		filePath := "./docs/swagger.yaml"
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			// Fallback jika dijalankan dari cmd/server
+			filePath = "../../docs/swagger.yaml"
+		}
+		return c.SendFile(filePath)
 	})
 
 	// Setup Swagger UI menggunakan go-openapi middleware
 	app.Use("/docs", adaptor.HTTPHandler(openapimiddleware.SwaggerUI(openapimiddleware.SwaggerUIOpts{
 		BasePath: "/",
 		Path:     "docs",
-		SpecURL:  "/docs/swagger.yaml",
+		SpecURL:  "/swagger.yaml",
 		Title:    "Biro Jasa API Docs",
 	}, nil)))
 

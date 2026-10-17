@@ -96,13 +96,18 @@ type CourierResponse struct {
 }
 
 type CourierData struct {
-	AvailableForCashOnDelivery bool   `json:"available_for_cash_on_delivery"`
-	AvailableForProofOfDelivery bool   `json:"available_for_proof_of_delivery"`
-	AvailableForInstantWaybillID bool  `json:"available_for_instant_waybill_id"`
-	AvailableForInsurance        bool  `json:"available_for_insurance"`
-	Company                      string `json:"courier_company"`
-	Name                         string `json:"courier_name"`
-	Type                         string `json:"courier_service_code"`
-	ServiceName                  string `json:"courier_service_name"`
+	AvailableForCashOnDelivery   bool   `json:"available_for_cash_on_delivery"`
+	AvailableForProofOfDelivery  bool   `json:"available_for_proof_of_delivery"`
+	AvailableForInstantWaybillID bool   `json:"available_for_instant_waybill_id"`
+	AvailableForInsurance        bool   `json:"available_for_insurance"`
+	CourierCode                  string `json:"courier_code"`
+	CourierName                  string `json:"courier_name"`
+	CourierServiceCode           string `json:"courier_service_code"`
+	CourierServiceName           string `json:"courier_service_name"`
+	Tier                         string `json:"tier"`
 	Description                  string `json:"description"`
+	ServiceType                  string `json:"service_type"`
+	ShippingType                 string `json:"shipping_type"`
+	ShipmentDurationRange        string `json:"shipment_duration_range"`
+	ShipmentDurationUnit         string `json:"shipment_duration_unit"`
 }
