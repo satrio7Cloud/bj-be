@@ -68,6 +68,10 @@ import (
 	paymentHandler "bj/internal/domain/payment/handler"
 	paymentUsecase "bj/internal/domain/payment/usecase"
 
+	companyHandler "bj/internal/domain/company/handler"
+	companyRepository "bj/internal/domain/company/repository"
+	companyUsecase "bj/internal/domain/company/usecase"
+
 	"gorm.io/gorm"
 )
 
@@ -141,6 +145,11 @@ type Container struct {
 	// Payment Domain
 	PaymentUC  paymentUsecase.PaymentUsecase
 	PaymentHdl *paymentHandler.PaymentHandler
+
+	// Company Profile Domain
+	CompanyRepo companyRepository.CompanyProfileRepository
+	CompanyUC   companyUsecase.CompanyProfileUsecase
+	CompanyHdl  *companyHandler.CompanyProfileHandler
 }
 
 func NewContainer(cfg *config.Config) (*Container, error) {
@@ -153,23 +162,23 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		return nil, fmt.Errorf(constants.MsgDbDisconnected)
 	}
 
-	// 1.5 Setup MinIO & Storage Service
+	// Setup MinIO & Storage Service
 	minioClient, err := minio.NewMinioClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgMinioInitFailed, err)
 	}
 	storageService := storage.NewMinioStorage(minioClient, cfg)
 
-	// 1.6 Setup Redis
+	// Setup Redis
 	redisClient, err := redis.NewRedisClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf(constants.MsgRedisInitFailed, err)
 	}
 
-	// 1.7 Setup Qris Generator
+	// Setup Qris Generator
 	qrisGenerator := qris.NewQrisGenerator(cfg)
 
-	// 1.8 Setup Midtrans Snap Client
+	// Setup Midtrans Snap Client
 	var snapClient snap.Client
 	midtransEnv := midtrans.Sandbox
 	if cfg.Midtrans.Env == "production" {
@@ -177,7 +186,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	}
 	snapClient.New(cfg.Midtrans.ServerKey, midtransEnv)
 
-	// 2. Setup Admin Domain
+	// Setup Admin Domain
 	adminRepo := adminRepository.NewAdminRepository(db)
 	adminUC := adminUsecase.NewAdminUsecase(adminRepo)
 	adminHdl := adminHandler.NewAdminHandler(adminUC)
@@ -237,6 +246,10 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	paymentUC := paymentUsecase.NewPaymentUsecase(orderUC)
 	paymentHdl := paymentHandler.NewPaymentHandler(paymentUC)
 
+	companyRepo := companyRepository.NewCompanyProfileRepository(db, cfg.Office)
+	companyUC := companyUsecase.NewCompanyProfileUsecase(companyRepo)
+	companyHdl := companyHandler.NewCompanyProfileHandler(companyUC)
+
 	// Start Cronjob Scheduler in background
 	go notificationUC.StartNotificationScheduler()
 
@@ -285,5 +298,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		BiteshipHdl:      biteshipHdl,
 		PaymentUC:        paymentUC,
 		PaymentHdl:       paymentHdl,
+		CompanyRepo:      companyRepo,
+		CompanyUC:        companyUC,
+		CompanyHdl:       companyHdl,
 	}, nil
 }

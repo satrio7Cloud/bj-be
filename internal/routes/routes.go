@@ -21,6 +21,7 @@ import (
 	serviceRoutes "bj/internal/domain/service/routes"
 	adminRoutes "bj/internal/domain/user/routes"
 	vehicleRoutes "bj/internal/domain/vehicle/routes"
+	companyRoutes "bj/internal/domain/company/routes"
 )
 
 func RegisterRoutes(app fiber.Router, c *di.Container) {
@@ -59,4 +60,5 @@ func RegisterRoutes(app fiber.Router, c *di.Container) {
 	notificationRoutes.RegisterNotificationRoutes(api, c.NotificationHdl)
 	paymentRoutes.RegisterPaymentRoutes(api, c.PaymentHdl)
 	biteshipRoutes.RegisterBiteshipRoutes(api, c.BiteshipHdl)
+	companyRoutes.RegisterCompanyProfileRoutes(api, c.CompanyHdl)
 }

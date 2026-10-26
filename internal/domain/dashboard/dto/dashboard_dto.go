@@ -1,4 +1,4 @@
-package dto
+﻿package dto
 
 import "time"
 
@@ -55,5 +55,7 @@ type DashboardOrderResponse struct {
 	CustomerName string    `json:"customer_name"`
 	PhoneNumber  string    `json:"phone_number"`
 	PlateNumber  string    `json:"plate_number"`
-	ServiceName  string    `json:"service_name"`
+	ServiceName    string    `json:"service_name"`
+	UnverifiedDocs int       `json:"unverified_docs"`
 }
+

@@ -51,6 +51,15 @@ type BiteshipConfig struct {
 	DefaultItemValue  int
 }
 
+type OfficeConfig struct {
+	Name             string
+	Address          string
+	PostalCode       string
+	Phone            string
+	ContactPerson    string
+	OperationalHours string
+}
+
 type Config struct {
 	AppHost          string
 	AppPort          string
@@ -61,6 +70,7 @@ type Config struct {
 	Qris             QrisConfig
 	Midtrans         MidtransConfig
 	Biteship         BiteshipConfig
+	Office           OfficeConfig
 }
 
 func LoadConfig() *Config {
@@ -118,6 +128,14 @@ func LoadConfig() *Config {
 			DefaultItemName:   getEnv("BITESHIP_DEFAULT_ITEM_NAME", "Dokumen Layanan Biro Jasa"),
 			DefaultItemWeight: getEnvInt("BITESHIP_DEFAULT_ITEM_WEIGHT", 200),
 			DefaultItemValue:  getEnvInt("BITESHIP_DEFAULT_ITEM_VALUE", 100000),
+		},
+		Office: OfficeConfig{
+			Name:             os.Getenv("OFFICE_NAME"),
+			Address:          os.Getenv("OFFICE_ADDRESS"),
+			PostalCode:       os.Getenv("OFFICE_POSTAL_CODE"),
+			Phone:            os.Getenv("OFFICE_PHONE"),
+			ContactPerson:    os.Getenv("OFFICE_CONTACT_PERSON"),
+			OperationalHours: os.Getenv("OFFICE_OPERATIONAL_HOURS"),
 		},
 	}
 }

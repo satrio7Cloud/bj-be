@@ -2,6 +2,9 @@ package repository
 
 import (
 	"bj/internal/domain/customer/entity"
+	"fmt"
+	"strings"
+
 	"gorm.io/gorm"
 )
 
@@ -23,53 +26,87 @@ func NewCustomerRepository(db *gorm.DB) CustomerRepository {
 }
 
 func (r *customerRepository) Create(customer *entity.Customer) error {
-	query := `INSERT INTO dbo.Customers (ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	query := `
+		INSERT INTO dbo.Customers (ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt) 
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`
 	return r.db.Exec(query, customer.ID, customer.Fullname, customer.PhoneNumber, customer.Address, customer.NIK, customer.Email, customer.CreatedAt).Error
 }
 
 func (r *customerRepository) FindAll() ([]entity.Customer, error) {
 	var customers []entity.Customer
-	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers ORDER BY CreatedAt DESC`
+	query := `
+		SELECT 
+			CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt 
+		FROM dbo.Customers 
+		ORDER BY CreatedAt DESC`
 	err := r.db.Raw(query).Scan(&customers).Error
 	return customers, err
 }
 
 func (r *customerRepository) FindByID(id string) (*entity.Customer, error) {
 	var customer entity.Customer
-	query := `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE ID = ?`
+	query := `
+		SELECT 
+			CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt 
+		FROM dbo.Customers 
+		WHERE ID = ?
+	`
 	res := r.db.Raw(query, id).Scan(&customer)
-	
+
 	if res.Error != nil {
 		return nil, res.Error
 	}
 	if res.RowsAffected == 0 {
 		return nil, nil
 	}
-	
+
 	return &customer, nil
 }
 
-func (r *customerRepository) FindByPhoneOrNIK(phone string, nik string) (*entity.Customer, error) {
-	var customer entity.Customer
-	var query string
-	var res *gorm.DB
-
-	if phone != "" && nik != "" {
-		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE PhoneNumber = ? OR NIK = ?`
-		res = r.db.Raw(query, phone, nik).Scan(&customer)
-	} else if phone != "" {
-		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE PhoneNumber = ?`
-		res = r.db.Raw(query, phone).Scan(&customer)
-	} else if nik != "" {
-		query = `SELECT CAST(ID AS VARCHAR(36)) AS ID, Fullname, PhoneNumber, Address, NIK, Email, CreatedAt FROM dbo.Customers WHERE NIK = ?`
-		res = r.db.Raw(query, nik).Scan(&customer)
-	} else {
-		return nil, nil
+func (r *customerRepository) FindByPhoneOrNIK(
+	phone string,
+	nik string,
+) (*entity.Customer, error) {
+	if phone == "" && nik == "" {
+		return nil, fmt.Errorf("phone atau NIK wajib diisi")
 	}
 
+	var customer entity.Customer
+
+	query := `
+        SELECT
+            CAST(ID AS VARCHAR(36)) AS ID,
+            Fullname,
+            PhoneNumber,
+            Address,
+            NIK,
+            Email,
+            CreatedAt
+        FROM dbo.Customers
+        WHERE
+    `
+
+	var conditions []string
+	var args []interface{}
+
+	if phone != "" {
+		conditions = append(conditions, "PhoneNumber = ?")
+		args = append(args, phone)
+	}
+
+	if nik != "" {
+		conditions = append(conditions, "NIK = ?")
+		args = append(args, nik)
+	}
+
+	query += strings.Join(conditions, " OR ")
+
+	res := r.db.Raw(query, args...).Scan(&customer)
 	if res.Error != nil {
 		return nil, res.Error
 	}
+
 	if res.RowsAffected == 0 {
 		return nil, nil
 	}
@@ -78,7 +115,11 @@ func (r *customerRepository) FindByPhoneOrNIK(phone string, nik string) (*entity
 }
 
 func (r *customerRepository) Update(customer *entity.Customer) error {
-	query := `UPDATE dbo.Customers SET Fullname = ?, PhoneNumber = ?, Address = ?, NIK = ?, Email = ? WHERE ID = ?`
+	query := `
+		UPDATE dbo.Customers 
+		SET Fullname = ?, PhoneNumber = ?, Address = ?, NIK = ?, Email = ? 
+		WHERE ID = ?
+	`
 	return r.db.Exec(query, customer.Fullname, customer.PhoneNumber, customer.Address, customer.NIK, customer.Email, customer.ID).Error
 }
 

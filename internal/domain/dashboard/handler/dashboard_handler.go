@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"bj/internal/constants"
@@ -48,7 +48,8 @@ func (h *DashboardHandler) GetOrders(c *fiber.Ctx) error {
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 20)
 
-	orders, total, err := h.dashboardUsecase.GetDashboardOrders(page, limit)
+	status := c.Query("status", "")
+	orders, total, err := h.dashboardUsecase.GetDashboardOrders(page, limit, status)
 	if err != nil {
 		return utils.HandleError(c, err)
 	}
@@ -104,3 +105,5 @@ func (h *DashboardHandler) GetRecentActivities(c *fiber.Ctx) error {
 		"data":   activities,
 	})
 }
+
+

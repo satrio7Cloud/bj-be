@@ -1,4 +1,4 @@
-package usecase
+﻿package usecase
 
 import (
 	"bj/internal/domain/dashboard/dto"
@@ -7,7 +7,7 @@ import (
 
 type DashboardUsecase interface {
 	GetDashboardSummary() (dto.DashboardSummaryResponse, error)
-	GetDashboardOrders(page, limit int) ([]dto.DashboardOrderResponse, int64, error)
+	GetDashboardOrders(page, limit int, status string) ([]dto.DashboardOrderResponse, int64, error)
 	GetChartData() ([]dto.DashboardChartResponse, error)
 	GetRecentActivities() ([]dto.DashboardActivityResponse, error)
 }
@@ -39,8 +39,8 @@ func (u *dashboardUsecase) GetDashboardSummary() (dto.DashboardSummaryResponse, 
 	return summary, nil
 }
 
-func (u *dashboardUsecase) GetDashboardOrders(page, limit int) ([]dto.DashboardOrderResponse, int64, error) {
-	orders, total, err := u.dashboardRepo.GetOrders(page, limit)
+func (u *dashboardUsecase) GetDashboardOrders(page, limit int, status string) ([]dto.DashboardOrderResponse, int64, error) {
+	orders, total, err := u.dashboardRepo.GetOrders(page, limit, status)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -56,7 +56,8 @@ func (u *dashboardUsecase) GetDashboardOrders(page, limit int) ([]dto.DashboardO
 			CustomerName: o.CustomerName,
 			PhoneNumber:  o.PhoneNumber,
 			PlateNumber:  o.PlateNumber,
-			ServiceName:  o.ServiceName,
+			ServiceName:    o.ServiceName,
+			UnverifiedDocs: o.UnverifiedDocs,
 		})
 	}
 
@@ -70,3 +71,5 @@ func (u *dashboardUsecase) GetChartData() ([]dto.DashboardChartResponse, error) 
 func (u *dashboardUsecase) GetRecentActivities() ([]dto.DashboardActivityResponse, error) {
 	return u.dashboardRepo.GetRecentActivities()
 }
+
+

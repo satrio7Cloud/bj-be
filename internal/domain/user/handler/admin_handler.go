@@ -31,7 +31,7 @@ func NewAdminHandler(usecase usecase.AdminUsecase) *AdminHandler {
 func (h *AdminHandler) Login(c *fiber.Ctx) error {
 	var req dto.LoginRequest
 
-	// 1. Parsing JSON Body
+	// Parsing JSON Body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  constants.StatusError,
@@ -39,7 +39,7 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Validasi Input Otomatis menggunakan Struct Validator
+	// Validasi Input Otomatis menggunakan Struct Validator
 	if validationErrors := utils.ValidateStruct(req); validationErrors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  constants.StatusError,
@@ -48,7 +48,7 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Panggil Usecase Login
+	// Panggil Usecase Login
 	resp, err := h.adminUsecase.Login(req)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -79,7 +79,7 @@ func (h *AdminHandler) Login(c *fiber.Ctx) error {
 func (h *AdminHandler) Register(c *fiber.Ctx) error {
 	var req dto.RegisterRequest
 
-	// 1. Parsing JSON Body
+	// Parsing JSON Body
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  constants.StatusError,
@@ -87,7 +87,7 @@ func (h *AdminHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// 2. Validasi Input Otomatis menggunakan Struct Validator
+	// Validasi Input Otomatis menggunakan Struct Validator
 	if validationErrors := utils.ValidateStruct(req); validationErrors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  constants.StatusError,
@@ -96,7 +96,7 @@ func (h *AdminHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Panggil Usecase
+	// Panggil Usecase
 	err := h.adminUsecase.Register(req)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -122,7 +122,7 @@ func (h *AdminHandler) Logout(c *fiber.Ctx) error {
 	// Karena autentikasi menggunakan JWT secara stateless (tanpa Redis blacklist),
 	// proses "Logout" yang sesungguhnya terjadi di sisi Frontend dengan menghapus Token dari LocalStorage.
 	// Endpoint ini hanya memberikan respons sukses (200 OK) untuk mengkonfirmasi request dari klien.
-	
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"status":  constants.StatusSuccess,
 		"message": "Berhasil logout",

@@ -1,4 +1,4 @@
-package repository
+﻿package repository
 
 import (
 	"bj/internal/domain/dashboard/dto"
@@ -13,7 +13,7 @@ type DashboardRepository interface {
 	GetTopServices() ([]dto.TopServiceResponse, error)
 	GetChartData() ([]dto.DashboardChartResponse, error)
 	GetRecentActivities() ([]dto.DashboardActivityResponse, error)
-	GetOrders(page, limit int) ([]entity.DashboardOrder, int64, error)
+	GetOrders(page, limit int, status string) ([]entity.DashboardOrder, int64, error)
 }
 
 type dashboardRepository struct {
@@ -62,7 +62,7 @@ func (r *dashboardRepository) GetSummary() (dto.DashboardSummaryResponse, error)
 	return summary, nil
 }
 
-func (r *dashboardRepository) GetOrders(page, limit int) ([]entity.DashboardOrder, int64, error) {
+func (r *dashboardRepository) GetOrders(page, limit int, status string) ([]entity.DashboardOrder, int64, error) {
 	var orders []entity.DashboardOrder
 	var total int64
 
@@ -75,7 +75,7 @@ func (r *dashboardRepository) GetOrders(page, limit int) ([]entity.DashboardOrde
 
 	offset := (page - 1) * limit
 	dataQuery := `
-		SELECT CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName 
+		SELECT CAST(OrderID AS VARCHAR(36)) AS OrderID, OrderDate, Status, ServiceLevel, TotalCost, CustomerName, PhoneNumber, PlateNumber, ServiceName, UnverifiedDocs 
 		` + baseQuery + ` 
 		ORDER BY OrderDate DESC 
 		OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
@@ -168,3 +168,5 @@ func (r *dashboardRepository) GetRecentActivities() ([]dto.DashboardActivityResp
 	err := r.db.Raw(query).Scan(&res).Error
 	return res, err
 }
+
+
