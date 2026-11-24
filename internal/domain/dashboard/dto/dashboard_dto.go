@@ -1,6 +1,11 @@
-﻿package dto
+package dto
 
-import "time"
+import (
+	"time"
+
+	"bj/internal/domain/dashboard/entity"
+	"bj/internal/utils"
+)
 
 type DashboardSummaryResponse struct {
 	// Existing Metrics
@@ -31,7 +36,7 @@ type TopServiceResponse struct {
 }
 
 type DashboardChartResponse struct {
-	Date       string  `json:"date"` // Format: YYYY-MM-DD
+	Date       string  `json:"date"`
 	OrderCount int64   `json:"order_count"`
 	Revenue    float64 `json:"revenue"`
 }
@@ -47,15 +52,39 @@ type DashboardActivityResponse struct {
 }
 
 type DashboardOrderResponse struct {
-	OrderID      string    `json:"order_id"`
-	OrderDate    time.Time `json:"order_date"`
-	Status       string    `json:"status"`
-	ServiceLevel string    `json:"service_level"`
-	TotalCost    float64   `json:"total_cost"`
-	CustomerName string    `json:"customer_name"`
-	PhoneNumber  string    `json:"phone_number"`
-	PlateNumber  string    `json:"plate_number"`
+	OrderID        string    `json:"order_id"`
+	OrderDate      time.Time `json:"order_date"`
+	Status         string    `json:"status"`
+	ServiceLevel   string    `json:"service_level"`
+	TotalCost      float64   `json:"total_cost"`
+	CustomerName   string    `json:"customer_name"`
+	PhoneNumber    string    `json:"phone_number"`
+	PlateNumber    string    `json:"plate_number"`
 	ServiceName    string    `json:"service_name"`
 	UnverifiedDocs int       `json:"unverified_docs"`
 }
 
+// ToDashboardOrderResponse mengonversi satu entity DashboardOrder menjadi response DTO
+func ToDashboardOrderResponse(o entity.DashboardOrder) DashboardOrderResponse {
+	return DashboardOrderResponse{
+		OrderID:        o.OrderID,
+		OrderDate:      utils.ToWIB(o.OrderDate),
+		Status:         o.Status,
+		ServiceLevel:   o.ServiceLevel,
+		TotalCost:      o.TotalCost,
+		CustomerName:   o.CustomerName,
+		PhoneNumber:    o.PhoneNumber,
+		PlateNumber:    o.PlateNumber,
+		ServiceName:    o.ServiceName,
+		UnverifiedDocs: o.UnverifiedDocs,
+	}
+}
+
+// ToDashboardOrderResponses mengonversi slice entity DashboardOrder menjadi slice response DTO
+func ToDashboardOrderResponses(orders []entity.DashboardOrder) []DashboardOrderResponse {
+	responses := make([]DashboardOrderResponse, 0, len(orders))
+	for _, o := range orders {
+		responses = append(responses, ToDashboardOrderResponse(o))
+	}
+	return responses
+}

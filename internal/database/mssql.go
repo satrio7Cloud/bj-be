@@ -22,12 +22,17 @@ func ConnectSQLServer(cfg *config.Config) *gorm.DB {
 		cfg.SQLServer.Database,
 	)
 
-	// Setup GORM Logger
+	// default ke logger.Warn untuk mencegah blocking I/O pada terminal saat trafik tinggi
+	logLevel := logger.Warn
+	if os.Getenv("GORM_DEBUG") == "true" || os.Getenv("GORM_LOG_LEVEL") == "info" {
+		logLevel = logger.Info
+	}
+
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             time.Second, // Toleransi query lambat
-			LogLevel:                  logger.Info, // Tampilkan semua query (ubah ke Warn di production)
+			SlowThreshold:             time.Second, // Toleransi query lambat tetap dicatat
+			LogLevel:                  logLevel,    // logger.Warn (default) atau logger.Info jika debug aktif
 			IgnoreRecordNotFoundError: true,        // Abaikan error NotFound
 			Colorful:                  true,        // Teks berwarna
 		},
@@ -47,9 +52,10 @@ func ConnectSQLServer(cfg *config.Config) *gorm.DB {
 			sqlDB, errPool := db.DB()
 			if errPool == nil {
 				if pingErr := sqlDB.Ping(); pingErr == nil {
-					sqlDB.SetMaxIdleConns(10)
+					sqlDB.SetMaxIdleConns(25)
 					sqlDB.SetMaxOpenConns(100)
 					sqlDB.SetConnMaxLifetime(time.Hour)
+					sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 					log.Println("Berhasil terhubung ke database", cfg.SQLServer.Database)
 					return db
 				}

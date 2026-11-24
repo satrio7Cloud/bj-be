@@ -31,9 +31,16 @@ type RateResponse struct {
 }
 
 type Pricing struct {
-	CourierName    string `json:"courier_name"`
-	CourierService string `json:"courier_service_name"`
-	Price          int    `json:"price"`
+	Company            string `json:"company"`
+	CourierCode        string `json:"courier_code"`
+	CourierName        string `json:"courier_name"`
+	CourierServiceCode string `json:"courier_service_code"`
+	CourierServiceName string `json:"courier_service_name"`
+	ServiceType        string `json:"service_type"`
+	Duration           string `json:"duration"`
+	DurationRange      string `json:"shipment_duration_range"`
+	DurationUnit       string `json:"shipment_duration_unit"`
+	Price              int    `json:"price"`
 }
 
 type CreateOrderRequest struct {

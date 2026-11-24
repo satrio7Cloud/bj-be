@@ -17,14 +17,14 @@ func NewInvoiceRepository(db *gorm.DB) InvoiceRepository {
 func (r *invoiceRepository) Create(invoice *entity.Invoice) error {
 	query := `INSERT INTO dbo.invoices (ID, OrderID, InvoiceNumber, IssueDate, DueDate, PaymentStatus, PaymentMethod, PaidAt, QrisPayload, QrisAmount, PaymentToken, PaymentUrl)
 			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	return r.db.Exec(query, 
-		invoice.ID, 
-		invoice.OrderID, 
-		invoice.InvoiceNumber, 
-		invoice.IssueDate, 
-		invoice.DueDate, 
-		invoice.PaymentStatus, 
-		invoice.PaymentMethod, 
+	return r.db.Exec(query,
+		invoice.ID,
+		invoice.OrderID,
+		invoice.InvoiceNumber,
+		invoice.IssueDate,
+		invoice.DueDate,
+		invoice.PaymentStatus,
+		invoice.PaymentMethod,
 		invoice.PaidAt,
 		invoice.QrisPayload,
 		invoice.QrisAmount,
@@ -39,7 +39,7 @@ func (r *invoiceRepository) GetByOrderID(orderID string) (*entity.Invoice, error
 		CAST(OrderID AS VARCHAR(36)) AS OrderID,
 		InvoiceNumber, IssueDate, DueDate, PaymentStatus, PaymentMethod, PaidAt, QrisPayload, QrisAmount, PaymentToken, PaymentUrl
 		FROM dbo.invoices WHERE OrderID = ?`
-		
+
 	res := r.db.Raw(query, orderID).Scan(&invoice)
 	if res.Error != nil {
 		return nil, res.Error
@@ -57,7 +57,7 @@ func (r *invoiceRepository) GetByID(id string) (*entity.Invoice, error) {
 		CAST(OrderID AS VARCHAR(36)) AS OrderID,
 		InvoiceNumber, IssueDate, DueDate, PaymentStatus, PaymentMethod, PaidAt, QrisPayload, QrisAmount, PaymentToken, PaymentUrl
 		FROM dbo.invoices WHERE ID = ?`
-		
+
 	res := r.db.Raw(query, id).Scan(&invoice)
 	if res.Error != nil {
 		return nil, res.Error
@@ -70,12 +70,15 @@ func (r *invoiceRepository) GetByID(id string) (*entity.Invoice, error) {
 
 func (r *invoiceRepository) Update(invoice *entity.Invoice) error {
 	query := `UPDATE dbo.invoices 
-			  SET PaymentStatus = ?, PaymentMethod = ?, PaidAt = ? 
+			  SET InvoiceNumber = ?, PaymentStatus = ?, PaymentMethod = ?, PaidAt = ?, PaymentToken = ?, PaymentUrl = ? 
 			  WHERE ID = ?`
-	return r.db.Exec(query, 
-		invoice.PaymentStatus, 
-		invoice.PaymentMethod, 
-		invoice.PaidAt, 
+	return r.db.Exec(query,
+		invoice.InvoiceNumber,
+		invoice.PaymentStatus,
+		invoice.PaymentMethod,
+		invoice.PaidAt,
+		invoice.PaymentToken,
+		invoice.PaymentUrl,
 		invoice.ID).Error
 }
 
@@ -114,6 +117,7 @@ func (r *invoiceRepository) GetAll(page, limit int) ([]entity.InvoiceWithDetails
 
 	return invoices, total, nil
 }
+
 func (r *invoiceRepository) GetActiveQrisAmounts(baseAmount float64) ([]float64, error) {
 	var amounts []float64
 	query := `SELECT i.QrisAmount 

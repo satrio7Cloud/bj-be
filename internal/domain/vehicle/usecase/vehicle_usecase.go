@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"bj/internal/domain/vehicle/dto"
-	"bj/internal/domain/vehicle/entity"
 	"bj/internal/domain/vehicle/repository"
 
 	"github.com/google/uuid"
@@ -27,26 +26,9 @@ func NewVehicleUsecase(repo repository.VehicleRepository) VehicleUsecase {
 	return &vehicleUsecase{repo}
 }
 
-// Mapper functions
-func mapVehicleToResponse(v entity.Vehicle) dto.VehicleResponse {
-	return dto.VehicleResponse{
-		ID:          v.ID,
-		CustomerID:  v.CustomerID,
-		ModelID:     v.ModelID,
-		PlateNumber: v.PlateNumber,
-		Year:        v.Year,
-	}
-}
-
 func (u *vehicleUsecase) CreateVehicle(req dto.CreateVehicleRequest) (string, error) {
 	newID := uuid.New().String()
-	vehicle := &entity.Vehicle{
-		ID:          newID,
-		CustomerID:  req.CustomerID,
-		ModelID:     req.ModelID,
-		PlateNumber: req.PlateNumber,
-		Year:        req.Year,
-	}
+	vehicle := req.ToEntity(newID)
 	err := u.vehicleRepo.Create(vehicle)
 	return newID, err
 }
@@ -56,11 +38,7 @@ func (u *vehicleUsecase) GetAllVehicles() ([]dto.VehicleResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var responses []dto.VehicleResponse
-	for _, v := range vehicles {
-		responses = append(responses, mapVehicleToResponse(v))
-	}
-	return responses, nil
+	return dto.ToVehicleResponses(vehicles), nil
 }
 
 func (u *vehicleUsecase) GetVehiclesByCustomer(customerID string) ([]dto.VehicleResponse, error) {
@@ -68,11 +46,7 @@ func (u *vehicleUsecase) GetVehiclesByCustomer(customerID string) ([]dto.Vehicle
 	if err != nil {
 		return nil, err
 	}
-	var responses []dto.VehicleResponse
-	for _, v := range vehicles {
-		responses = append(responses, mapVehicleToResponse(v))
-	}
-	return responses, nil
+	return dto.ToVehicleResponses(vehicles), nil
 }
 
 func (u *vehicleUsecase) GetVehicleByID(id string) (*dto.VehicleResponse, error) {
@@ -84,7 +58,7 @@ func (u *vehicleUsecase) GetVehicleByID(id string) (*dto.VehicleResponse, error)
 		return nil, errors.New("kendaraan tidak ditemukan")
 	}
 
-	resp := mapVehicleToResponse(*vehicle)
+	resp := dto.ToVehicleResponse(*vehicle)
 	return &resp, nil
 }
 
@@ -97,16 +71,7 @@ func (u *vehicleUsecase) UpdateVehicle(id string, req dto.UpdateVehicleRequest) 
 		return errors.New("kendaraan tidak ditemukan")
 	}
 
-	if req.ModelID != "" {
-		vehicle.ModelID = req.ModelID
-	}
-	if req.PlateNumber != "" {
-		vehicle.PlateNumber = req.PlateNumber
-	}
-	if req.Year > 0 {
-		vehicle.Year = req.Year
-	}
-
+	req.ApplyToEntity(vehicle)
 	return u.vehicleRepo.Update(vehicle)
 }
 

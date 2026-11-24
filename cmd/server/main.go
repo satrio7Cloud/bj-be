@@ -13,6 +13,7 @@ import (
 	openapimiddleware "github.com/go-openapi/runtime/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 )
 
 // @title Biro Jasa API
@@ -24,7 +25,6 @@ func main() {
 
 	cfg := config.LoadConfig()
 
-	// -- WIRING DEPENDENCY INJECTION MENGGUNAKAN CONTAINER --
 	container, err := di.NewContainer(cfg)
 	if err != nil {
 		log.Fatalf("Error membangun container: %v", err)
@@ -55,8 +55,14 @@ func main() {
 		},
 	})
 
-	// Mengaktifkan Middleware CORS & Logger
+	// Mengaktifkan Middleware Kompresi (Gzip/Brotli)
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
+
+	// Mengaktifkan Middleware CORS, Rate Limiter & Logger
 	app.Use(middleware.CorsConfig())
+	app.Use(middleware.RateLimiter())
 	app.Use(middleware.RequestLogger())
 
 	app.Get("/health", func(c *fiber.Ctx) error {

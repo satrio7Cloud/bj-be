@@ -53,14 +53,25 @@ func (h *VehicleHandler) CreateVehicle(c *fiber.Ctx) error {
 }
 
 // @Summary Get All Vehicles
-// @Description Retrieve a list of all customer vehicles
+// @Description Retrieve a list of vehicles, optionally filtered by customer_id
 // @Tags vehicles
 // @Produce json
+// @Param customer_id query string false "Customer ID"
 // @Success 200 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/vehicles [get]
 func (h *VehicleHandler) GetVehicles(c *fiber.Ctx) error {
-	vehicles, err := h.vehicleUsecase.GetAllVehicles()
+	customerID := c.Query("customer_id")
+
+	var vehicles []dto.VehicleResponse
+	var err error
+
+	if customerID != "" {
+		vehicles, err = h.vehicleUsecase.GetVehiclesByCustomer(customerID)
+	} else {
+		vehicles, err = h.vehicleUsecase.GetAllVehicles()
+	}
+
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": constants.StatusError, "message": err.Error()})
 	}

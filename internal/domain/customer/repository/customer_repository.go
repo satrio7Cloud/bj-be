@@ -13,6 +13,7 @@ type CustomerRepository interface {
 	FindAll() ([]entity.Customer, error)
 	FindByID(id string) (*entity.Customer, error)
 	FindByPhoneOrNIK(phone string, nik string) (*entity.Customer, error)
+	FindByPhoneOrNIKAndName(phone string, nik string, name string) (*entity.Customer, error)
 	Update(customer *entity.Customer) error
 	Delete(id string) error
 }
@@ -101,6 +102,64 @@ func (r *customerRepository) FindByPhoneOrNIK(
 	}
 
 	query += strings.Join(conditions, " OR ")
+
+	res := r.db.Raw(query, args...).Scan(&customer)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	if res.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	return &customer, nil
+}
+
+func (r *customerRepository) FindByPhoneOrNIKAndName(
+	phone string,
+	nik string,
+	name string,
+) (*entity.Customer, error) {
+	if phone == "" && nik == "" {
+		return nil, fmt.Errorf("phone atau NIK wajib diisi")
+	}
+
+	var customer entity.Customer
+
+	query := `
+        SELECT TOP 1
+            CAST(ID AS VARCHAR(36)) AS ID,
+            Fullname,
+            PhoneNumber,
+            Address,
+            NIK,
+            Email,
+            CreatedAt
+        FROM dbo.Customers
+        WHERE (
+    `
+
+	var conditions []string
+	var args []interface{}
+
+	if phone != "" {
+		conditions = append(conditions, "PhoneNumber = ?")
+		args = append(args, phone)
+	}
+
+	if nik != "" {
+		conditions = append(conditions, "NIK = ?")
+		args = append(args, nik)
+	}
+
+	query += strings.Join(conditions, " OR ") + ")"
+
+	if strings.TrimSpace(name) != "" {
+		query += " AND LOWER(LTRIM(RTRIM(Fullname))) = LOWER(LTRIM(RTRIM(?)))"
+		args = append(args, name)
+	}
+
+	query += " ORDER BY CreatedAt DESC"
 
 	res := r.db.Raw(query, args...).Scan(&customer)
 	if res.Error != nil {

@@ -72,6 +72,18 @@ import (
 	companyRepository "bj/internal/domain/company/repository"
 	companyUsecase "bj/internal/domain/company/usecase"
 
+	courierHandler "bj/internal/domain/courier/handler"
+	courierRepository "bj/internal/domain/courier/repository"
+	courierUsecase "bj/internal/domain/courier/usecase"
+
+	shippingHandler "bj/internal/domain/shipping/handler"
+	shippingRepository "bj/internal/domain/shipping/repository"
+	shippingUsecase "bj/internal/domain/shipping/usecase"
+
+	deliveryMethodHandler "bj/internal/domain/deliverymethod/handler"
+	deliveryMethodRepository "bj/internal/domain/deliverymethod/repository"
+	deliveryMethodUsecase "bj/internal/domain/deliverymethod/usecase"
+
 	"gorm.io/gorm"
 )
 
@@ -150,6 +162,21 @@ type Container struct {
 	CompanyRepo companyRepository.CompanyProfileRepository
 	CompanyUC   companyUsecase.CompanyProfileUsecase
 	CompanyHdl  *companyHandler.CompanyProfileHandler
+
+	// Courier Domain
+	CourierRepo courierRepository.CourierRepository
+	CourierUC   courierUsecase.CourierUsecase
+	CourierHdl  *courierHandler.CourierHandler
+
+	// Shipping Domain
+	ShippingSettingsRepo shippingRepository.ShippingSettingsRepository
+	ShippingUC           shippingUsecase.ShippingUsecase
+	ShippingHdl          *shippingHandler.ShippingHandler
+
+	// Shipping Method Domain
+	DeliveryMethodRepo deliveryMethodRepository.DeliveryMethodRepository
+	DeliveryMethodUC   deliveryMethodUsecase.DeliveryMethodUsecase
+	DeliveryMethodHdl  *deliveryMethodHandler.DeliveryMethodHandler
 }
 
 func NewContainer(cfg *config.Config) (*Container, error) {
@@ -200,7 +227,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	customerHdl := customerHandler.NewCustomerHandler(customerUC)
 
 	modelRepo := modelRepository.NewModelRepository(db)
-	modelUC := modelUsecase.NewModelUsecase(modelRepo)
+	modelUC := modelUsecase.NewModelUsecase(modelRepo, redisClient)
 	modelHdl := modelHandler.NewModelHandler(modelUC)
 
 	vehicleRepo := vehicleRepository.NewVehicleRepository(db)
@@ -232,7 +259,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	documentHdl := documentHandler.NewDocumentHandler(documentUC)
 
 	dashboardRepo := dashboardRepository.NewDashboardRepository(db)
-	dashboardUC := dashboardUsecase.NewDashboardUsecase(dashboardRepo)
+	dashboardUC := dashboardUsecase.NewDashboardUsecase(dashboardRepo, redisClient)
 	dashboardHdl := dashboardHandler.NewDashboardHandler(dashboardUC)
 
 	invoiceRepo := invoiceRepository.NewInvoiceRepository(db)
@@ -247,8 +274,23 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	paymentHdl := paymentHandler.NewPaymentHandler(paymentUC)
 
 	companyRepo := companyRepository.NewCompanyProfileRepository(db, cfg.Office)
-	companyUC := companyUsecase.NewCompanyProfileUsecase(companyRepo)
+	companyUC := companyUsecase.NewCompanyProfileUsecase(companyRepo, redisClient)
 	companyHdl := companyHandler.NewCompanyProfileHandler(companyUC)
+
+	// Setup Courier Domain
+	courierRepo := courierRepository.NewCourierRepository(db)
+	courierUC := courierUsecase.NewCourierUsecase(courierRepo, biteshipSvc)
+	courierHdl := courierHandler.NewCourierHandler(courierUC)
+
+	// Setup Shipping Domain
+	shippingSettingsRepo := shippingRepository.NewShippingSettingsRepository(db)
+	shippingUC := shippingUsecase.NewShippingUsecase(shippingSettingsRepo, courierRepo, biteshipSvc, cfg.Biteship.OriginPostalCode)
+	shippingHdl := shippingHandler.NewShippingHandler(shippingUC)
+
+	// Setup Shipping Method Domain
+	deliveryMethodRepo := deliveryMethodRepository.NewDeliveryMethodRepository(db)
+	deliveryMethodUC := deliveryMethodUsecase.NewDeliveryMethodUsecase(deliveryMethodRepo, redisClient)
+	deliveryMethodHdl := deliveryMethodHandler.NewDeliveryMethodHandler(deliveryMethodUC)
 
 	// Start Cronjob Scheduler in background
 	go notificationUC.StartNotificationScheduler()
@@ -301,5 +343,17 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		CompanyRepo:      companyRepo,
 		CompanyUC:        companyUC,
 		CompanyHdl:       companyHdl,
+
+		CourierRepo:          courierRepo,
+		CourierUC:            courierUC,
+		CourierHdl:           courierHdl,
+
+		ShippingSettingsRepo: shippingSettingsRepo,
+		ShippingUC:           shippingUC,
+		ShippingHdl:          shippingHdl,
+
+		DeliveryMethodRepo: deliveryMethodRepo,
+		DeliveryMethodUC:   deliveryMethodUC,
+		DeliveryMethodHdl:  deliveryMethodHdl,
 	}, nil
 }

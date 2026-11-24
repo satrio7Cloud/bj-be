@@ -10,8 +10,11 @@ import (
 	"bj/internal/di"
 	biteshipRoutes "bj/internal/domain/biteship/routes"
 	brandRoutes "bj/internal/domain/brand/routes"
+	companyRoutes "bj/internal/domain/company/routes"
+	courierRoutes "bj/internal/domain/courier/routes"
 	customerRoutes "bj/internal/domain/customer/routes"
 	dashboardRoutes "bj/internal/domain/dashboard/routes"
+	deliveryMethodRoutes "bj/internal/domain/deliverymethod/routes"
 	documentRoutes "bj/internal/domain/document/routes"
 	invoiceRoutes "bj/internal/domain/invoice/routes"
 	modelRoutes "bj/internal/domain/model/routes"
@@ -19,9 +22,9 @@ import (
 	orderRoutes "bj/internal/domain/order/routes"
 	paymentRoutes "bj/internal/domain/payment/routes"
 	serviceRoutes "bj/internal/domain/service/routes"
+	shippingRoutes "bj/internal/domain/shipping/routes"
 	adminRoutes "bj/internal/domain/user/routes"
 	vehicleRoutes "bj/internal/domain/vehicle/routes"
-	companyRoutes "bj/internal/domain/company/routes"
 )
 
 func RegisterRoutes(app fiber.Router, c *di.Container) {
@@ -43,6 +46,10 @@ func RegisterRoutes(app fiber.Router, c *di.Container) {
 			})
 		}
 
+		// Cache-Control header agar browser dan proxy dapat meng-cache file statis
+		ctx.Response().Header.Del(fiber.HeaderServer)
+		ctx.Set("Cache-Control", "public, max-age=86400")
+
 		return nil
 	})
 
@@ -61,4 +68,7 @@ func RegisterRoutes(app fiber.Router, c *di.Container) {
 	paymentRoutes.RegisterPaymentRoutes(api, c.PaymentHdl)
 	biteshipRoutes.RegisterBiteshipRoutes(api, c.BiteshipHdl)
 	companyRoutes.RegisterCompanyProfileRoutes(api, c.CompanyHdl)
+	courierRoutes.RegisterCourierRoutes(api, c.CourierHdl)
+	shippingRoutes.RegisterShippingRoutes(api, c.ShippingHdl)
+	deliveryMethodRoutes.RegisterDeliveryMethodRoutes(api, c.DeliveryMethodHdl)
 }

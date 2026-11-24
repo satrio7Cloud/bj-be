@@ -91,6 +91,32 @@ func (h *InvoiceHandler) GetInvoiceByOrderID(c *fiber.Ctx) error {
 	})
 }
 
+// @Summary Sync Invoice Status with Midtrans
+// @Description Explicitly check and update transaction status from Midtrans Core API
+// @Tags invoices
+// @Produce json
+// @Param id path string true "Order ID or Invoice ID"
+// @Success 200 {object} dto.InvoiceDetailResponse
+// @Failure 404 {object} map[string]interface{}
+// @Router /api/v1/invoices/{id}/sync [post]
+func (h *InvoiceHandler) SyncInvoice(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	resp, err := h.invoiceUsecase.SyncInvoiceStatus(id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  constants.StatusError,
+			"message": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status":  constants.StatusSuccess,
+		"message": "Status invoice berhasil disinkronkan dengan Midtrans",
+		"data":    resp,
+	})
+}
+
 // @Summary Pay Invoice
 // @Description Simulate payment of an invoice (Update status to PAID)
 // @Tags invoices
@@ -183,5 +209,3 @@ func (h *InvoiceHandler) GetInvoices(c *fiber.Ctx) error {
 		},
 	})
 }
-
-

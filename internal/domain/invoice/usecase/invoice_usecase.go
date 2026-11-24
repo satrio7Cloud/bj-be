@@ -3,7 +3,9 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
+	"strings"
 	"time"
 
 	"crypto/sha512"
@@ -18,15 +20,18 @@ import (
 	srvRepo "bj/internal/domain/service/repository"
 	vehRepo "bj/internal/domain/vehicle/repository"
 	"bj/internal/pkg/qris"
+	"bj/internal/utils"
 
 	"github.com/google/uuid"
 	"github.com/midtrans/midtrans-go"
+	"github.com/midtrans/midtrans-go/coreapi"
 	"github.com/midtrans/midtrans-go/snap"
 )
 
 type InvoiceUsecase interface {
 	GenerateInvoice(req invDto.GenerateInvoiceRequest) (*invDto.InvoiceDetailResponse, error)
 	GetInvoiceByOrderID(orderID string) (*invDto.InvoiceDetailResponse, error)
+	SyncInvoiceStatus(orderIDOrInvoiceNumber string) (*invDto.InvoiceDetailResponse, error)
 	PayInvoice(invoiceID string, req invDto.PayInvoiceRequest) error
 	GetAll(page, limit int) (map[string]interface{}, error)
 	GetAllInvoices(page int, limit int) ([]invDto.InvoiceDetailResponse, int64, error)
@@ -63,28 +68,123 @@ func NewInvoiceUsecase(
 	}
 }
 
+// syncMidtransStatus memeriksa status transaksi secara realtime ke Midtrans Core API
+func (u *invoiceUsecase) syncMidtransStatus(invoice *invEntity.Invoice) error {
+	if invoice == nil || invoice.PaymentStatus == "PAID" || invoice.InvoiceNumber == "" {
+		return nil
+	}
+
+	var snapEnv midtrans.EnvironmentType = midtrans.Sandbox
+	if u.cfg.Midtrans.Env == "production" {
+		snapEnv = midtrans.Production
+	}
+
+	client := coreapi.Client{}
+	client.New(u.cfg.Midtrans.ServerKey, snapEnv)
+
+	resp, midErr := client.CheckTransaction(invoice.InvoiceNumber)
+	if midErr != nil || resp == nil {
+		return fmt.Errorf("gagal cek transaksi: %w", midErr)
+	}
+
+	switch resp.TransactionStatus {
+	case "settlement", "capture":
+		invoice.PaymentStatus = "PAID"
+		now := utils.NowWIB()
+		invoice.PaidAt = &now
+		if resp.PaymentType != "" {
+			invoice.PaymentMethod = &resp.PaymentType
+		}
+		err := u.invoiceRepo.Update(invoice)
+		if err != nil {
+			return err
+		}
+
+		// Sinkronkan status pesanan jika masih pending
+		if invoice.OrderID != "" {
+			order, err := u.orderRepo.FindByID(invoice.OrderID)
+			if err == nil && order != nil {
+				if order.Status == "Pending" || order.Status == "PENDING" {
+					// error handling pada update status order
+					errStatus := u.orderRepo.UpdateStatus(invoice.OrderID, "Processing")
+					if errStatus != nil {
+						return fmt.Errorf("invoice lunas, tapi gagal menaikkan status order ke Processing: %w", errStatus)
+					}
+				}
+			}
+		}
+	case "expire", "cancel", "deny":
+		invoice.PaymentStatus = "FAILED"
+		err := u.invoiceRepo.Update(invoice)
+		if err != nil {
+			return fmt.Errorf("gagal memperbarui data invoice gagal/expired: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (u *invoiceUsecase) GenerateInvoice(req invDto.GenerateInvoiceRequest) (*invDto.InvoiceDetailResponse, error) {
-	// 1. Cek apakah invoice untuk order ini sudah ada
+	// Cek apakah invoice untuk order ini sudah ada dan sudah memiliki token pembayaran Midtrans
 	existing, _ := u.invoiceRepo.GetByOrderID(req.OrderID)
-	if existing != nil {
+	if existing != nil && existing.PaymentToken != nil && *existing.PaymentToken != "" {
 		return u.GetInvoiceByOrderID(req.OrderID)
 	}
 
-	// 2. Ambil Order
+	// Ambil Order
 	order, err := u.orderRepo.FindByID(req.OrderID)
 	if err != nil {
 		return nil, errors.New("order tidak ditemukan")
 	}
 
-	// 3. Generate Invoice Number (Contoh: INV-YYYYMMDD-ORDERID_SEBAGIAN)
-	dateStr := time.Now().Format("20060102")
-	shortID := order.ID
-	if len(shortID) > 8 {
-		shortID = shortID[:8]
+	// Ambil data Pelanggan, Kendaraan, dan Layanan sekaligus
+	cust, err := u.custRepo.FindByID(order.CustomerID)
+	if err != nil || cust == nil {
+		return nil, fmt.Errorf("gagal mendapatkan data pelanggan: %w", err)
 	}
-	invNum := fmt.Sprintf("INV-%s-%s", dateStr, shortID)
+	veh, _ := u.vehRepo.FindByID(order.VehicleID)
+	srv, _ := u.srvRepo.FindByID(order.ServiceID)
 
-	// 4. Hit Midtrans Snap API
+	// Pembulatan Desimal Nominal (GrossAmt) akurat dengan math.Round
+	grossAmt := int64(math.Round(order.TotalCost))
+	if grossAmt <= 0 {
+		return nil, errors.New("total tagihan harus lebih besar dari 0")
+	}
+
+	nowWIB := utils.NowWIB()
+	var invNum string
+	var invoice *invEntity.Invoice
+
+	if existing != nil {
+		invNum = existing.InvoiceNumber
+		invoice = existing
+	} else {
+		// Generate Invoice Number (Contoh: INV-YYYYMMDD-ORDERID_SEBAGIAN)
+		dateStr := nowWIB.Format("20060102")
+		shortID := order.ID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+		invNum = fmt.Sprintf("INV-%s-%s", dateStr, shortID)
+
+		// data invoice di database lokal terlebih dahulu (status UNPAID)
+		invoice = &invEntity.Invoice{
+			ID:            uuid.New().String(),
+			OrderID:       order.ID,
+			InvoiceNumber: invNum,
+			IssueDate:     nowWIB,
+			DueDate:       nowWIB.Add(24 * 7 * time.Hour), // 7 Hari
+			PaymentStatus: "UNPAID",
+			PaymentToken:  nil,
+			PaymentUrl:    nil,
+		}
+
+		if err := u.invoiceRepo.Create(invoice); err != nil {
+			return nil, fmt.Errorf("gagal menyimpan invoice: %w", err)
+		}
+	}
+
+	// Hit Midtrans Snap API
 	var snapEnv midtrans.EnvironmentType = midtrans.Sandbox
 	if u.cfg.Midtrans.Env == "production" {
 		snapEnv = midtrans.Production
@@ -95,56 +195,55 @@ func (u *invoiceUsecase) GenerateInvoice(req invDto.GenerateInvoiceRequest) (*in
 	reqMidtrans := &snap.Request{
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  invNum,
-			GrossAmt: int64(order.TotalCost),
+			GrossAmt: grossAmt,
 		},
 		CustomerDetail: &midtrans.CustomerDetails{
-			FName: "Pelanggan",
-			Email: "no-reply@birojasa.com",
-			Phone: "0800000000",
+			FName: cust.Fullname,
+			Email: cust.Email,
+			Phone: cust.PhoneNumber,
 		},
-	}
-
-	if cust, err := u.custRepo.FindByID(order.CustomerID); err == nil {
-		reqMidtrans.CustomerDetail.FName = cust.Fullname
-		reqMidtrans.CustomerDetail.Phone = cust.PhoneNumber
-		reqMidtrans.CustomerDetail.Email = cust.Email
 	}
 
 	snapResp, errSnap := snapClient.CreateTransaction(reqMidtrans)
+	if errSnap != nil && strings.Contains(errSnap.Error(), "already been taken") {
+		invNum = fmt.Sprintf("%s-%d", invNum, time.Now().Unix()%100000)
+		invoice.InvoiceNumber = invNum
+		_ = u.invoiceRepo.Update(invoice)
 
-	var paymentToken *string
-	var paymentUrl *string
-	if errSnap == nil && snapResp != nil {
-		paymentToken = &snapResp.Token
-		paymentUrl = &snapResp.RedirectURL
-	} else {
+		reqMidtrans.TransactionDetails.OrderID = invNum
+		snapResp, errSnap = snapClient.CreateTransaction(reqMidtrans)
+	}
+
+	if errSnap != nil || snapResp == nil {
+		invoice.PaymentStatus = "FAILED"
+		_ = u.invoiceRepo.Update(invoice)
 		return nil, fmt.Errorf("Midtrans Error: %v", errSnap)
 	}
 
-	// 5. Buat Entity Invoice
-	invoice := &invEntity.Invoice{
-		ID:            uuid.New().String(),
-		OrderID:       order.ID,
-		InvoiceNumber: invNum,
-		IssueDate:     time.Now(),
-		DueDate:       time.Now().Add(24 * 7 * time.Hour), // 7 Hari
-		PaymentStatus: "UNPAID",
-		PaymentToken:  paymentToken,
-		PaymentUrl:    paymentUrl,
+	// Update Invoice dengan Token & Redirect URL dari Midtrans
+	paymentToken := snapResp.Token
+	paymentUrl := snapResp.RedirectURL
+	invoice.PaymentToken = &paymentToken
+	invoice.PaymentUrl = &paymentUrl
+	invoice.PaymentStatus = "UNPAID"
+
+	if err := u.invoiceRepo.Update(invoice); err != nil {
+		return nil, fmt.Errorf("gagal memperbarui token pembayaran di database: %w", err)
 	}
 
-	err = u.invoiceRepo.Create(invoice)
-	if err != nil {
-		return nil, err
-	}
-
-	return u.GetInvoiceByOrderID(req.OrderID)
+	// Mapping langsung di memori tanpa query ulang ke database
+	return invDto.ToInvoiceDetailResponse(invoice, order, cust, veh, srv), nil
 }
 
 func (u *invoiceUsecase) GetInvoiceByOrderID(orderID string) (*invDto.InvoiceDetailResponse, error) {
 	invoice, err := u.invoiceRepo.GetByOrderID(orderID)
 	if err != nil || invoice == nil {
 		return nil, errors.New("invoice tidak ditemukan")
+	}
+
+	// Auto sync ke Midtrans jika belum PAID
+	if invoice.PaymentStatus != "PAID" {
+		_ = u.syncMidtransStatus(invoice)
 	}
 
 	order, err := u.orderRepo.FindByID(orderID)
@@ -156,42 +255,31 @@ func (u *invoiceUsecase) GetInvoiceByOrderID(orderID string) (*invDto.InvoiceDet
 	veh, _ := u.vehRepo.FindByID(order.VehicleID)
 	srv, _ := u.srvRepo.FindByID(order.ServiceID)
 
-	resp := &invDto.InvoiceDetailResponse{
-		InvoiceID:        invoice.ID,
-		OrderID:          invoice.OrderID,
-		InvoiceNumber:    invoice.InvoiceNumber,
-		IssueDate:        invoice.IssueDate,
-		DueDate:          invoice.DueDate,
-		PaymentStatus:    invoice.PaymentStatus,
-		PaymentMethod:    invoice.PaymentMethod,
-		PaidAt:           invoice.PaidAt,
-		PaymentToken:     invoice.PaymentToken,
-		PaymentUrl:       invoice.PaymentUrl,
-		
-		QrisPayload:      invoice.QrisPayload,
-		QrisAmount:       invoice.QrisAmount,
+	return invDto.ToInvoiceDetailResponse(invoice, order, cust, veh, srv), nil
+}
 
-		TaxAmount:        order.TaxAmount,
-		ServiceFee:       order.ServiceFee,
-		AdminFee:         order.AdminFee,
-		PhysicalCheckFee: order.PhysicalCheckFee,
-		DeliveryFee:      order.DeliveryFee,
-		ExpressFee:       order.ExpressFee,
-		TotalCost:        order.TotalCost,
+// SyncInvoiceStatus melakukan sinkronisasi eksplisit dengan Midtrans API
+func (u *invoiceUsecase) SyncInvoiceStatus(orderIDOrInvoiceNumber string) (*invDto.InvoiceDetailResponse, error) {
+	invoice, err := u.invoiceRepo.GetByOrderID(orderIDOrInvoiceNumber)
+	if err != nil || invoice == nil {
+		invoice, err = u.invoiceRepo.GetByID(orderIDOrInvoiceNumber)
 	}
-
-	if cust != nil {
-		resp.CustomerName = cust.Fullname
-		resp.CustomerPhone = cust.PhoneNumber
+	if invoice == nil {
+		// Cari dari list berdasarkan InvoiceNumber
+		invoices, _, _ := u.invoiceRepo.GetAll(1, 500)
+		for _, inv := range invoices {
+			if inv.InvoiceNumber == orderIDOrInvoiceNumber {
+				invoice, _ = u.invoiceRepo.GetByID(inv.ID)
+				break
+			}
+		}
 	}
-	if veh != nil {
-		resp.VehiclePlate = veh.PlateNumber
-	}
-	if srv != nil {
-		resp.ServiceName = srv.ServiceName
+	if invoice == nil {
+		return nil, errors.New("invoice tidak ditemukan")
 	}
 
-	return resp, nil
+	_ = u.syncMidtransStatus(invoice)
+	return u.GetInvoiceByOrderID(invoice.OrderID)
 }
 
 func (u *invoiceUsecase) PayInvoice(invoiceID string, req invDto.PayInvoiceRequest) error {
@@ -204,7 +292,7 @@ func (u *invoiceUsecase) PayInvoice(invoiceID string, req invDto.PayInvoiceReque
 		return errors.New("invoice sudah dibayar sebelumnya")
 	}
 
-	now := time.Now()
+	now := utils.NowWIB()
 	invoice.PaymentStatus = "PAID"
 	invoice.PaymentMethod = &req.PaymentMethod
 	invoice.PaidAt = &now
@@ -220,24 +308,21 @@ func (u *invoiceUsecase) GetAll(page, limit int) (map[string]interface{}, error)
 
 	var responseList []invDto.InvoiceDetailResponse
 	for _, inv := range invoices {
-		responseList = append(responseList, invDto.InvoiceDetailResponse{
-			InvoiceID:        inv.ID,
-			OrderID:          inv.OrderID,
-			InvoiceNumber:    inv.InvoiceNumber,
-			IssueDate:        inv.IssueDate,
-			DueDate:          inv.DueDate,
-			PaymentStatus:    inv.PaymentStatus,
-			PaymentMethod:    inv.PaymentMethod,
-			PaidAt:           inv.PaidAt,
-			QrisPayload:      inv.QrisPayload,
-			QrisAmount:       inv.QrisAmount,
-			CustomerName:     inv.CustomerName,
-			CustomerEmail:    inv.CustomerEmail,
-			CustomerPhone:    inv.CustomerPhone,
-			VehiclePlate:     inv.VehiclePlate,
-			ServiceName:      inv.ServiceName,
-			TotalCost:        inv.TotalCost,
-		})
+		paymentStatus := inv.PaymentStatus
+		paidAt := inv.PaidAt
+		paymentMethod := inv.PaymentMethod
+
+		// Realtime sync ke Midtrans jika status belum PAID
+		if paymentStatus != "PAID" && inv.InvoiceNumber != "" {
+			if invEntityObj, err := u.invoiceRepo.GetByID(inv.ID); err == nil && invEntityObj != nil {
+				_ = u.syncMidtransStatus(invEntityObj)
+				paymentStatus = invEntityObj.PaymentStatus
+				paidAt = invEntityObj.PaidAt
+				paymentMethod = invEntityObj.PaymentMethod
+			}
+		}
+
+		responseList = append(responseList, invDto.FromInvoiceWithDetails(&inv, paymentStatus, paidAt, paymentMethod))
 	}
 
 	return map[string]interface{}{
@@ -265,16 +350,31 @@ func randomUniqueCode(baseAmount float64, activeAmounts []float64) int64 {
 	}
 
 	if len(available) == 0 {
-		// Fallback to standard random if pool is full (should not happen in ordinary cases)
 		return int64(rand.Intn(99) + 1)
 	}
 
-	// Select a random available code
 	return available[rand.Intn(len(available))]
 }
 
 func (u *invoiceUsecase) GetAllInvoices(page int, limit int) ([]invDto.InvoiceDetailResponse, int64, error) {
-	return u.invoiceRepo.FindAll(page, limit)
+	invoices, total, err := u.invoiceRepo.FindAll(page, limit)
+	if err == nil {
+		for i := range invoices {
+			invoices[i].IssueDate = utils.ToWIB(invoices[i].IssueDate)
+			invoices[i].DueDate = utils.ToWIB(invoices[i].DueDate)
+			invoices[i].PaidAt = utils.ToWIBPtr(invoices[i].PaidAt)
+
+			if invoices[i].PaymentStatus != "PAID" && invoices[i].InvoiceNumber != "" {
+				if invEntityObj, err := u.invoiceRepo.GetByID(invoices[i].InvoiceID); err == nil && invEntityObj != nil {
+					_ = u.syncMidtransStatus(invEntityObj)
+					invoices[i].PaymentStatus = invEntityObj.PaymentStatus
+					invoices[i].PaidAt = utils.ToWIBPtr(invEntityObj.PaidAt)
+					invoices[i].PaymentMethod = invEntityObj.PaymentMethod
+				}
+			}
+		}
+	}
+	return invoices, total, err
 }
 
 func (u *invoiceUsecase) HandleMidtransNotification(payload map[string]interface{}) error {
@@ -299,13 +399,13 @@ func (u *invoiceUsecase) HandleMidtransNotification(payload map[string]interface
 	}
 
 	// Cari invoice berdasarkan InvoiceNumber = order_id di Midtrans
-	invoices, _, err := u.invoiceRepo.GetAll(1, 1000) // atau buat method get by InvoiceNumber
+	invoices, _, err := u.invoiceRepo.GetAll(1, 1000)
 	if err != nil {
 		return err
 	}
 	var targetInvoice *invEntity.InvoiceWithDetails
 	for _, inv := range invoices {
-		if inv.InvoiceNumber == orderID {
+		if inv.InvoiceNumber == orderID || (inv.InvoiceNumber != "" && (strings.HasPrefix(orderID, inv.InvoiceNumber) || strings.HasPrefix(inv.InvoiceNumber, orderID))) {
 			targetInvoice = &inv
 			break
 		}
@@ -320,13 +420,14 @@ func (u *invoiceUsecase) HandleMidtransNotification(payload map[string]interface
 		return err
 	}
 
-	now := time.Now()
-	if transactionStatus == "capture" || transactionStatus == "settlement" {
+	now := utils.NowWIB()
+	switch transactionStatus {
+	case "capture", "settlement":
 		invToUpdate.PaymentStatus = "PAID"
 		paymentType, _ := payload["payment_type"].(string)
 		invToUpdate.PaymentMethod = &paymentType
 		invToUpdate.PaidAt = &now
-	} else if transactionStatus == "cancel" || transactionStatus == "deny" || transactionStatus == "expire" {
+	case "cancel", "deny", "expire":
 		invToUpdate.PaymentStatus = "FAILED"
 	}
 

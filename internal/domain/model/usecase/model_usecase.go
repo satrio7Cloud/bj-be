@@ -1,13 +1,22 @@
 package usecase
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"bj/internal/domain/model/dto"
-	"bj/internal/domain/model/entity"
 	"bj/internal/domain/model/repository"
+	"bj/internal/shared/cache"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+)
+
+const (
+	modelsAllCacheKey   = "master:models:all"
+	modelsBrandCacheKey = "master:models:brand:"
+	modelsCacheTTL      = 1 * time.Hour
 )
 
 type ModelUsecase interface {
@@ -20,56 +29,52 @@ type ModelUsecase interface {
 }
 
 type modelUsecase struct {
-	modelRepo repository.ModelRepository
+	modelRepo   repository.ModelRepository
+	redisClient *redis.Client
 }
 
-func NewModelUsecase(repo repository.ModelRepository) ModelUsecase {
-	return &modelUsecase{repo}
-}
-
-// Mapper functions
-func mapModelToResponse(m entity.Model) dto.ModelResponse {
-	return dto.ModelResponse{
-		ID:          m.ID,
-		BrandID:     m.BrandID,
-		BrandName:   m.BrandName,
-		ModelName:   m.ModelName,
-		VehicleType: m.VehicleType,
+func NewModelUsecase(repo repository.ModelRepository, redisClient *redis.Client) ModelUsecase {
+	return &modelUsecase{
+		modelRepo:   repo,
+		redisClient: redisClient,
 	}
+}
+
+func (u *modelUsecase) invalidateCache() {
+	ctx := context.Background()
+	cache.Invalidate(ctx, u.redisClient, modelsAllCacheKey)
+	cache.InvalidateByPattern(ctx, u.redisClient, modelsBrandCacheKey+"*")
 }
 
 func (u *modelUsecase) CreateModel(req dto.CreateModelRequest) error {
-	model := &entity.Model{
-		ID:          uuid.New().String(),
-		BrandID:     req.BrandID,
-		ModelName:   req.ModelName,
-		VehicleType: req.VehicleType,
+	model := req.ToEntity(uuid.New().String())
+	err := u.modelRepo.Create(model)
+	if err == nil {
+		u.invalidateCache()
 	}
-	return u.modelRepo.Create(model)
+	return err
 }
 
 func (u *modelUsecase) GetAllModels() ([]dto.ModelResponse, error) {
-	models, err := u.modelRepo.FindAll()
-	if err != nil {
-		return nil, err
-	}
-	var responses []dto.ModelResponse
-	for _, m := range models {
-		responses = append(responses, mapModelToResponse(m))
-	}
-	return responses, nil
+	return cache.GetOrSet(context.Background(), u.redisClient, modelsAllCacheKey, modelsCacheTTL, func() ([]dto.ModelResponse, error) {
+		models, err := u.modelRepo.FindAll()
+		if err != nil {
+			return nil, err
+		}
+		return dto.ToModelResponses(models), nil
+	})
 }
 
 func (u *modelUsecase) GetModelsByBrand(brandID string) ([]dto.ModelResponse, error) {
-	models, err := u.modelRepo.FindByBrandID(brandID)
-	if err != nil {
-		return nil, err
-	}
-	var responses []dto.ModelResponse
-	for _, m := range models {
-		responses = append(responses, mapModelToResponse(m))
-	}
-	return responses, nil
+	cacheKey := modelsBrandCacheKey + brandID
+
+	return cache.GetOrSet(context.Background(), u.redisClient, cacheKey, modelsCacheTTL, func() ([]dto.ModelResponse, error) {
+		models, err := u.modelRepo.FindByBrandID(brandID)
+		if err != nil {
+			return nil, err
+		}
+		return dto.ToModelResponses(models), nil
+	})
 }
 
 func (u *modelUsecase) GetModelByID(id string) (*dto.ModelResponse, error) {
@@ -81,7 +86,7 @@ func (u *modelUsecase) GetModelByID(id string) (*dto.ModelResponse, error) {
 		return nil, errors.New("model tidak ditemukan")
 	}
 
-	resp := mapModelToResponse(*model)
+	resp := dto.ToModelResponse(*model)
 	return &resp, nil
 }
 
@@ -94,19 +99,19 @@ func (u *modelUsecase) UpdateModel(id string, req dto.UpdateModelRequest) error 
 		return errors.New("model tidak ditemukan")
 	}
 
-	if req.BrandID != "" {
-		model.BrandID = req.BrandID
-	}
-	if req.ModelName != "" {
-		model.ModelName = req.ModelName
-	}
-	if req.VehicleType != "" {
-		model.VehicleType = req.VehicleType
-	}
+	req.ApplyToEntity(model)
 
-	return u.modelRepo.Update(model)
+	err = u.modelRepo.Update(model)
+	if err == nil {
+		u.invalidateCache()
+	}
+	return err
 }
 
 func (u *modelUsecase) DeleteModel(id string) error {
-	return u.modelRepo.Delete(id)
+	err := u.modelRepo.Delete(id)
+	if err == nil {
+		u.invalidateCache()
+	}
+	return err
 }

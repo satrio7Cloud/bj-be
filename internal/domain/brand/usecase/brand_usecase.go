@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"bj/internal/domain/brand/dto"
-	"bj/internal/domain/brand/entity"
 	"bj/internal/domain/brand/repository"
 
 	"github.com/google/uuid"
@@ -26,19 +25,8 @@ func NewBrandUsecase(repo repository.BrandRepository) BrandUsecase {
 	return &brandUsecase{repo}
 }
 
-// Mapper functions
-func mapBrandToResponse(b entity.Brand) dto.BrandResponse {
-	return dto.BrandResponse{
-		ID:        b.ID,
-		BrandName: b.BrandName,
-	}
-}
-
 func (u *brandUsecase) CreateBrand(req dto.CreateBrandRequest) error {
-	brand := &entity.Brand{
-		ID:        uuid.New().String(),
-		BrandName: req.BrandName,
-	}
+	brand := req.ToEntity(uuid.New().String())
 	return u.brandRepo.Create(brand)
 }
 
@@ -47,12 +35,7 @@ func (u *brandUsecase) GetAllBrands() ([]dto.BrandResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var responses []dto.BrandResponse
-	for _, b := range brands {
-		responses = append(responses, mapBrandToResponse(b))
-	}
-	return responses, nil
+	return dto.ToBrandResponses(brands), nil
 }
 
 func (u *brandUsecase) GetBrandByID(id string) (*dto.BrandResponse, error) {
@@ -64,7 +47,7 @@ func (u *brandUsecase) GetBrandByID(id string) (*dto.BrandResponse, error) {
 		return nil, errors.New("merek tidak ditemukan")
 	}
 
-	resp := mapBrandToResponse(*brand)
+	resp := dto.ToBrandResponse(*brand)
 	return &resp, nil
 }
 
@@ -77,7 +60,7 @@ func (u *brandUsecase) UpdateBrand(id string, req dto.UpdateBrandRequest) error 
 		return errors.New("merek tidak ditemukan")
 	}
 
-	brand.BrandName = req.BrandName
+	req.ApplyToEntity(brand)
 	return u.brandRepo.Update(brand)
 }
 

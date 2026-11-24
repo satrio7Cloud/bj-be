@@ -25,7 +25,6 @@ func NewDocumentRepository(db *gorm.DB) DocumentRepository {
 
 func (r *documentRepository) Create(document *entity.Document) error {
 	query := `INSERT INTO dbo.OrderDocuments (ID, OrderID, DocumentType, FilePath, IsVerified) VALUES (?, ?, ?, ?, ?)`
-	// Konversi boolean ke bit jika diperlukan, walau driver biasanya handle ini
 	isVerifiedBit := 0
 	if document.IsVerified {
 		isVerifiedBit = 1
@@ -72,7 +71,6 @@ func (r *documentRepository) Update(document *entity.Document) error {
 }
 
 func (r *documentRepository) Delete(id string) error {
-	// Soft delete dengan menset DeletedAt ke waktu saat ini
 	query := `UPDATE dbo.OrderDocuments SET DeletedAt = GETDATE() WHERE ID = ?`
 	return r.db.Exec(query, id).Error
 }

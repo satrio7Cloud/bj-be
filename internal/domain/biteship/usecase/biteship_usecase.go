@@ -153,10 +153,12 @@ func (u *biteshipUsecase) CalculateShippingFee(courierName, courierService, dest
 
 	var foundPrice float64 = 0
 	for _, p := range rateResp.Pricing {
-		sameCourier := strings.EqualFold(p.CourierName, courierName)
-		sameService := strings.EqualFold(p.CourierService, courierService) ||
-			strings.Contains(strings.ToLower(p.CourierService), strings.ToLower(courierService)) ||
-			strings.Contains(strings.ToLower(courierService), strings.ToLower(p.CourierService))
+		sameCourier := strings.EqualFold(p.CourierName, courierName) ||
+			strings.EqualFold(p.CourierCode, courierName)
+		sameService := strings.EqualFold(p.CourierServiceName, courierService) ||
+			strings.EqualFold(p.CourierServiceCode, courierService) ||
+			strings.Contains(strings.ToLower(p.CourierServiceName), strings.ToLower(courierService)) ||
+			strings.Contains(strings.ToLower(courierService), strings.ToLower(p.CourierServiceName))
 
 		if sameCourier && sameService {
 			foundPrice = float64(p.Price)
